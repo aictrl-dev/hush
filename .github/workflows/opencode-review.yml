@@ -73,8 +73,10 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -fsSL https://opencode.ai/install | bash
+          # Use GITHUB_TOKEN to avoid rate limits when fetching version info
+          curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
           echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
       - name: Direct OpenCode Review
