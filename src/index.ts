@@ -205,10 +205,12 @@ app.all('*', async (req, res) => {
     delete headers.host;
     delete headers.connection;
 
+    const method = req.method || 'GET';
+
     const response = await fetch(targetUrl, {
-      method: req.method,
+      method,
       headers,
-      body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined,
+      body: ['POST', 'PUT', 'PATCH'].includes(method) ? JSON.stringify(req.body) : undefined,
       signal: AbortSignal.timeout(30000),
     });
 
