@@ -53,17 +53,20 @@ async function proxyRequest(
   targetUrl: string,
   headers: Record<string, string>
 ) {
+  const startTime = performance.now();
   if (dashboard) dashboard.logRequest(req.path);
 
   // 1. Redact Request Body (Prompts, Tool Results)
   const { content: redactedBody, tokens, hasRedacted } = redactor.redact(req.body);
-  
+  const redactionDuration = Math.round(performance.now() - startTime);
+
   if (hasRedacted) {
-    log.info({ path: req.path, tokenCount: tokens.size }, 'Redacted sensitive data from request');
+    log.info({ path: req.path, tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
     vault.saveTokens(tokens);
     
-    // Log to Live Dashboard
+    // Log to Live Dashboard with performance data
     if (dashboard) {
+      dashboard.logRequest(req.path, redactionDuration);
       tokens.forEach((value, token) => {
         const type = token.split('_')[1]; // Extract type from [HUSH_TYPE_ID]
         dashboard!.logRedaction(type, token);
