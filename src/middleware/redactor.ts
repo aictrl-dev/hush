@@ -35,6 +35,8 @@ export class Redactor {
     SECRET: /(?:api[-_]?key|secret|password|token|bearer|auth)["']?\s*[:=]\s*["']?([a-zA-Z0-9\-_]{16,})["']?/gi,
     /** Credit Card (basic) */
     CREDIT_CARD: /\b(?:\d[ -]*?){13,16}\b/g,
+    /** Phone Numbers (common international and US formats) */
+    PHONE: /(?:\+\d{1,3}[- ]?)?\(?\d{2,3}\)?[- ]?\d{3,4}[- ]?\d{4}/g,
   };
 
   /**
@@ -105,6 +107,14 @@ export class Redactor {
         text = text.replace(Redactor.PATTERNS.CREDIT_CARD, (match) => {
           hasRedacted = true;
           const token = `[PAYMENT_CARD_${tokens.size + 1}]`;
+          tokens.set(token, match);
+          return token;
+        });
+
+        // Redact Phone Numbers
+        text = text.replace(Redactor.PATTERNS.PHONE, (match) => {
+          hasRedacted = true;
+          const token = `[PHONE_NUMBER_${tokens.size + 1}]`;
           tokens.set(token, match);
           return token;
         });
