@@ -34,7 +34,7 @@ app.use(express.json({ limit: '50mb' }));
  * Security Middleware: Local Proxy Authentication
  */
 app.use((req, res, next) => {
-  const path: string = req.path || req.url || '/';
+  const path: string = req.path || '/';
   if (path === '/health') return next();
   
   if (HUSH_TOKEN) {
@@ -72,7 +72,7 @@ async function proxyRequest(
   }
 
   if (hasRedacted) {
-    log.info({ path, tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
+    log.info({ path: String(path), tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
     vault.saveTokens(tokens);
     
     // Log redaction events
@@ -97,14 +97,14 @@ async function proxyRequest(
 
     // Handle Upstream Errors (4xx, 5xx)
     if (!response.ok) {
-      log.error({ status: response.status, path }, 'Upstream provider returned an error');
+      log.error({ status: response.status, path: String(path) }, 'Upstream provider returned an error');
       const errorData = await response.text();
       return res.status(response.status).send(errorData);
     }
 
     // Case A: Streaming
     if (req.body.stream && response.body) {
-      log.info({ path }, 'Starting stream proxy');
+      log.info({ path: String(path) }, 'Starting stream proxy');
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -144,7 +144,7 @@ async function proxyRequest(
     res.status(response.status).json(rehydratedData);
 
   } catch (error) {
-    log.error({ err: error, path }, 'Failed to forward request');
+    log.error({ err: error, path: String(path) }, 'Failed to forward request');
     res.status(500).json({ error: 'Gateway forwarding failed' });
   }
 }
@@ -196,10 +196,10 @@ app.post('/v1beta/models/:modelAndAction', async (req, res) => {
 app.all('*', async (req, res) => {
   const targetBase = 'https://generativelanguage.googleapis.com';
   const targetUrl = `${targetBase}${req.url}`;
-  const path: string = req.path || req.url || '/';
+  const path: string = req.path || '/';
   const method: string = req.method || 'GET';
   
-  log.info({ path, method }, 'Forwarding unknown endpoint to Google');
+  log.info({ path: String(path), method: String(method) }, 'Forwarding unknown endpoint to Google');
 
   try {
     const headers: any = { ...req.headers };
@@ -216,7 +216,7 @@ app.all('*', async (req, res) => {
     const data = await response.text();
     res.status(response.status).send(data);
   } catch (error) {
-    log.error({ err: error, path }, 'Catch-all forwarding failed');
+    log.error({ err: error, path: String(path) }, 'Catch-all forwarding failed');
     res.status(500).json({ error: 'Gateway forwarding failed' });
   }
 });
