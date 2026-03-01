@@ -47,7 +47,13 @@ npm install -g @aictrl/hush
 
     For **OpenAI-based tools**:
     ```bash
-    export OPENAI_BASE_URL=http://127.0.0.1:4000
+    export OPENAI_BASE_URL=http://127.0.0.1:4000/v1
+    ```
+
+    For **Google Gemini**:
+    ```bash
+    # Note: Use this with the Google Generative AI SDK
+    export GOOGLE_GENERATIVE_AI_BASE_URL=http://127.0.0.1:4000
     ```
 
 ## Configuration
