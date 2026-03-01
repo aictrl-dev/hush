@@ -3,9 +3,11 @@
 </p>
 
 **hush** is a Semantic Security Gateway for AI agents.
- It acts as a local proxy between your AI tools (like Claude Code, Cursor, or custom CLI agents) and LLM providers (Anthropic, OpenAI).
+It acts as a local proxy between your AI tools (like Claude Code, Codex, OpenCode, Gemini CLI) and LLM providers (Anthropic, OpenAI, Google, ZhipuAI).
 
-Hush ensures that sensitive data—like emails, IP addresses, and secrets—never leaves your machine by redacting it from prompts and tool outputs before they hit the cloud.
+Hush ensures that sensitive data — like emails, IP addresses, and secrets — never leaves your machine by redacting it from prompts and tool outputs before they hit the cloud.
+
+One gateway instance handles **all providers simultaneously** via path-based auto-detection.
 
 ## Why Hush?
 
@@ -21,6 +23,16 @@ Hush intercepts this traffic, replaces PII with persistent tokens, and stores th
 - **Zero-Trust Architecture:** Local-only processing. PII never leaves your machine. Bindings default to `127.0.0.1`.
 - **Streaming Support:** Robust rehydration for SSE (Server-Sent Events) even when tokens are split across network chunks.
 
+## Supported Tools
+
+| Tool | Route | Auth Header |
+|------|-------|-------------|
+| Claude Code | `/v1/messages` | `x-api-key` or `Authorization` |
+| Codex (OpenAI) | `/v1/chat/completions` | `Authorization` |
+| OpenCode (ZhipuAI GLM-5) | `/api/paas/v4/chat/completions` | `Authorization` |
+| Gemini CLI | `/v1beta/models/*` | `x-goog-api-key` |
+| Any other | catch-all → Google | passthrough |
+
 ## Getting Started
 
 ### Installation
@@ -29,35 +41,35 @@ Hush intercepts this traffic, replaces PII with persistent tokens, and stores th
 npm install -g @aictrl/hush
 ```
 
-### Usage
+### Quick Start
 
-1.  **Start the hush Gateway:**
-    ```bash
-    hush --dashboard
-    ```
-    hush will start listening on `http://127.0.0.1:4000`.
+Start the gateway once, then point any tool at it:
 
-2.  **Point your AI tool to the Gateway:**
+```bash
+# Terminal 1: Start Hush
+hush --dashboard
 
-    For **Claude Code**:
-    ```bash
-    export ANTHROPIC_BASE_URL=http://127.0.0.1:4000
-    claude
-    ```
+# Terminal 2: Claude Code
+ANTHROPIC_API_KEY=sk-ant-... ANTHROPIC_BASE_URL=http://127.0.0.1:4000 claude
 
-    For **OpenAI-based tools**:
-    ```bash
-    export OPENAI_BASE_URL=http://127.0.0.1:4000/v1
-    ```
+# Terminal 3: Codex
+OPENAI_API_KEY=sk-... OPENAI_BASE_URL=http://127.0.0.1:4000/v1 codex
 
-    For **Google Gemini**:
-    ```bash
-    # For the Google Generative AI SDK
-    export GOOGLE_GENERATIVE_AI_BASE_URL=http://127.0.0.1:4000
+# Terminal 4: Gemini CLI
+export GOOGLE_GENERATIVE_AI_BASE_URL=http://127.0.0.1:4000
+export CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
+```
 
-    # For the Gemini CLI
-    export CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
-    ```
+### Authentication
+
+Each tool authenticates with its **provider's API key**. Hush forwards auth headers transparently to the upstream provider.
+
+> **Note on Claude Code subscriptions:** Claude Code subscription (OAuth) tokens are
+> [not supported by Anthropic for third-party proxy use](https://github.com/anthropics/claude-code/issues/28091).
+> You need an **API key** from the [Anthropic Console](https://console.anthropic.com/) to use Claude Code through Hush.
+> Set `ANTHROPIC_API_KEY` in the terminal where you run `claude` — this overrides subscription auth.
+>
+> This is an upstream Anthropic limitation that affects all LLM proxies and gateways (LiteLLM, etc.), not just Hush.
 
 ## Configuration
 
@@ -65,8 +77,9 @@ npm install -g @aictrl/hush
 |----------|-------------|---------|
 | `PORT` | The port the gateway listens on. | `4000` |
 | `HUSH_HOST` | The host interface to bind to. | `127.0.0.1` |
-| `HUSH_AUTH_TOKEN` | If set, the proxy requires `Authorization: Bearer <token>` | `undefined` |
+| `HUSH_AUTH_TOKEN` | If set, the proxy requires `x-hush-token` or `Authorization: Bearer <token>` for access. | `undefined` |
 | `HUSH_DASHBOARD` | Set to `true` to enable the TUI dashboard. | `false` |
+| `DEBUG` | Set to `true` to expose vault size in `/health`. | `false` |
 
 ## How it Works
 
