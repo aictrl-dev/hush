@@ -175,6 +175,21 @@ app.post('/v1/chat/completions', async (req, res) => {
   });
 });
 
+/**
+ * Handle Google Gemini API proxy
+ * Supports: /v1beta/models/{model}:generateContent
+ */
+app.post('/v1beta/models/:modelAndAction', async (req, res) => {
+  const apiKey = req.headers['x-goog-api-key'] || req.query.key;
+  if (!apiKey) return res.status(401).json({ error: 'Missing Google API Key' });
+
+  const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/${req.params.modelAndAction}${req.url.includes('?') ? '?' + req.url.split('?')[1] : ''}`;
+
+  await proxyRequest(req, res, targetUrl, {
+    'x-goog-api-key': apiKey as string,
+  });
+});
+
 // Health check
 app.get('/health', (req, res) => {
   const response: any = { status: 'running' };
