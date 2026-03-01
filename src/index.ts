@@ -63,8 +63,20 @@ async function proxyRequest(
   const startTime = performance.now();
   const dashboard = getDashboard();
   
-  // 1. Redact Request Body (Prompts, Tool Results)
-  const { content: redactedBody, tokens, hasRedacted } = redactor.redact(req.body);
+  const hasBody = ['POST', 'PUT', 'PATCH'].includes(req.method);
+
+  // 1. Redact Request Body (Prompts, Tool Results) — only for methods with a body
+  let redactedBody: any;
+  let tokens = new Map<string, string>();
+  let hasRedacted = false;
+
+  if (hasBody) {
+    const result = redactor.redact(req.body);
+    redactedBody = result.content;
+    tokens = result.tokens;
+    hasRedacted = result.hasRedacted;
+  }
+
   const redactionDuration = Math.round(performance.now() - startTime);
 
   // Log all requests to dashboard
@@ -75,7 +87,7 @@ async function proxyRequest(
   if (hasRedacted) {
     log.info({ path: req.path, tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
     vault.saveTokens(tokens);
-    
+
     // Log redaction events
     if (dashboard) {
       tokens.forEach((value, token) => {
@@ -86,13 +98,13 @@ async function proxyRequest(
   }
 
   try {
+    const fetchHeaders: Record<string, string> = { ...headers };
+    if (hasBody) fetchHeaders['Content-Type'] = 'application/json';
+
     const response = await fetch(targetUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify(redactedBody),
+      method: req.method,
+      headers: fetchHeaders,
+      body: hasBody ? JSON.stringify(redactedBody) : undefined,
       signal: AbortSignal.timeout(30000), // 30s timeout
     });
 
@@ -104,7 +116,7 @@ async function proxyRequest(
     }
 
     // Case A: Streaming
-    if (req.body.stream && response.body) {
+    if (req.body?.stream && response.body) {
       log.info({ path: req.path }, 'Starting stream proxy');
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -155,12 +167,16 @@ async function proxyRequest(
  */
 app.post('/v1/messages', async (req, res) => {
   const apiKey = req.headers['x-api-key'];
-  if (!apiKey) return res.status(401).json({ error: 'Missing Anthropic API Key' });
+  const auth = req.headers['authorization'];
+  if (!apiKey && !auth) return res.status(401).json({ error: 'Missing Anthropic API Key or Authorization header' });
 
-  await proxyRequest(req, res, 'https://api.anthropic.com/v1/messages', {
-    'x-api-key': apiKey as string,
+  const headers: Record<string, string> = {
     'anthropic-version': req.headers['anthropic-version'] as string || '2023-06-01',
-  });
+  };
+  if (apiKey) headers['x-api-key'] = apiKey as string;
+  if (auth) headers['Authorization'] = auth as string;
+
+  await proxyRequest(req, res, 'https://api.anthropic.com/v1/messages', headers);
 });
 
 /**
@@ -214,31 +230,20 @@ app.get('/health', (req, res) => {
 });
 
 /**
- * Catch-all Handler: Forward any other requests to Google
- * This ensures login and metadata calls work correctly.
+ * Catch-all Handler: Forward unmatched requests with redaction/rehydration.
+ * Uses HUSH_UPSTREAM if set, otherwise falls back to Google.
  */
 app.all('/*path', async (req, res) => {
   const targetBase = 'https://generativelanguage.googleapis.com';
   const targetUrl = `${targetBase}${req.url}`;
 
-  log.info({ path: req.path, method: req.method }, 'Forwarding unknown endpoint to Google');
+  log.info({ path: req.path, method: req.method, upstream: targetBase }, 'Forwarding to upstream');
 
-  try {
-    const headers: any = { ...req.headers };
-    delete headers.host;
-    delete headers.connection;
+  // Collect auth headers to pass through
+  const headers: Record<string, string> = {};
+  if (req.headers['authorization']) headers['Authorization'] = req.headers['authorization'] as string;
+  if (req.headers['x-api-key']) headers['x-api-key'] = req.headers['x-api-key'] as string;
+  if (req.headers['x-goog-api-key']) headers['x-goog-api-key'] = req.headers['x-goog-api-key'] as string;
 
-    const response = await fetch(targetUrl, {
-      method: req.method,
-      headers,
-      body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined,
-      signal: AbortSignal.timeout(30000),
-    });
-
-    const data = await response.text();
-    res.status(response.status).send(data);
-  } catch (error) {
-    log.error({ err: error, path: req.path }, 'Catch-all forwarding failed');
-    res.status(500).json({ error: 'Gateway forwarding failed' });
-  }
+  await proxyRequest(req, res, targetUrl, headers);
 });
