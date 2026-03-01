@@ -62,6 +62,7 @@ async function proxyRequest(
 ) {
   const startTime = performance.now();
   const dashboard = getDashboard();
+  const path = req.path || req.url || '/';
   
   // 1. Redact Request Body (Prompts, Tool Results)
   const { content: redactedBody, tokens, hasRedacted } = redactor.redact(req.body);
@@ -69,11 +70,11 @@ async function proxyRequest(
 
   // Log all requests to dashboard
   if (dashboard) {
-    dashboard.logRequest(req.path, redactionDuration);
+    dashboard.logRequest(path, redactionDuration);
   }
 
   if (hasRedacted) {
-    log.info({ path: req.path, tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
+    log.info({ path, tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
     vault.saveTokens(tokens);
     
     // Log redaction events
