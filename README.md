@@ -49,27 +49,36 @@ Routes: /v1/messages → Anthropic, /v1/chat/completions → OpenAI, /api/paas/v
 
 ### 3. Point your AI tool at the gateway
 
-Open a **new terminal** for each tool. The gateway handles all providers simultaneously — no restart needed.
+The gateway handles all providers simultaneously — no restart needed. You only need to tell each tool to send requests to `http://127.0.0.1:4000` instead of the provider's API. Hush forwards your existing auth headers transparently — no API keys need to be reconfigured.
 
-#### Claude Code (Anthropic API key)
+#### Claude Code
 
-```bash
-# Terminal 2
-ANTHROPIC_AUTH_TOKEN=sk-ant-api03-YOUR-KEY \
-ANTHROPIC_BASE_URL=http://127.0.0.1:4000 \
-claude
+Add to `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000"
+  }
+}
 ```
 
-> **Note:** Claude Code subscription (OAuth) tokens are currently blocked by Anthropic for third-party proxies. You must use an Anthropic API key. Set `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) — this tells Claude Code to send it as the `Authorization` header which the gateway forwards.
+Then run `claude` as normal.
+
+> **Note:** Claude Code subscription (OAuth) tokens are currently blocked by Anthropic for third-party proxies ([anthropics/claude-code#28091](https://github.com/anthropics/claude-code/issues/28091)). If you hit a 401, use an Anthropic API key instead by adding `"ANTHROPIC_AUTH_TOKEN": "sk-ant-..."` to the env block above.
 
 #### Codex (OpenAI)
 
-```bash
-# Terminal 3
-OPENAI_API_KEY=sk-YOUR-KEY \
-OPENAI_BASE_URL=http://127.0.0.1:4000/v1 \
-codex
+Add to `~/.codex/config.toml` (or `.codex/config.toml` in your project):
+
+```toml
+[model_providers.hush]
+base_url = "http://127.0.0.1:4000/v1"
+
+model_provider = "hush"
 ```
+
+Or as an env var: `OPENAI_BASE_URL=http://127.0.0.1:4000/v1 codex`
 
 #### OpenCode (ZhipuAI GLM-5)
 
@@ -87,21 +96,14 @@ Create `opencode.json` in your **project root** (the folder where you run `openc
 }
 ```
 
-Then run OpenCode normally — it picks up the config automatically:
-
-```bash
-# Terminal 4
-cd /path/to/your/project
-opencode
-```
+Then run `opencode` as normal — it picks up the config automatically.
 
 #### Gemini CLI
 
+Gemini CLI only supports env vars for endpoint override (no settings file option):
+
 ```bash
-# Terminal 5
-GOOGLE_API_KEY=YOUR-KEY \
-CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000 \
-gemini
+CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000 gemini
 ```
 
 ### 4. Verify it works
