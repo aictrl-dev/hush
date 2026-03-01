@@ -3,16 +3,46 @@ import cors from 'cors';
 import { createLogger } from './lib/logger.js';
 import { Redactor } from './middleware/redactor.js';
 import { TokenVault } from './vault/token-vault.js';
+import { Dashboard } from './lib/dashboard.js';
 
 const log = createLogger('hush-proxy');
 const redactor = new Redactor();
 const vault = new TokenVault();
 
-export const app = express();
-const PORT = process.env.PORT || 4000;
+// Conditional Dashboard integration
+let dashboard: Dashboard | null = null;
+if (process.env.HUSH_DASHBOARD === 'true') {
+  dashboard = new Dashboard();
+}
 
-app.use(cors());
+export const app = express();
+
+// Security: Bind only to localhost by default to prevent network exposure
+const BIND_ADDRESS = process.env.HUSH_HOST || '127.0.0.1';
+
+// Security: Optional Bearer Token for the proxy itself
+const HUSH_TOKEN = process.env.HUSH_AUTH_TOKEN;
+
+app.use(cors({ origin: 'http://localhost' })); // Restrict CORS
 app.use(express.json({ limit: '50mb' }));
+
+/**
+ * Security Middleware: Local Proxy Authentication
+ */
+app.use((req, res, next) => {
+  if (req.path === '/health') return next();
+  
+  if (HUSH_TOKEN) {
+    const authHeader = req.headers['x-hush-token'] || req.headers['authorization'];
+    const providedToken = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    
+    if (!providedToken || (providedToken !== HUSH_TOKEN && providedToken !== `Bearer ${HUSH_TOKEN}`)) {
+      log.warn({ ip: req.ip }, 'Unauthorized access attempt');
+      return res.status(401).json({ error: 'Unauthorized: Invalid HUSH_AUTH_TOKEN' });
+    }
+  }
+  next();
+});
 
 /**
  * Helper to handle proxying with optional streaming
@@ -23,12 +53,22 @@ async function proxyRequest(
   targetUrl: string,
   headers: Record<string, string>
 ) {
+  if (dashboard) dashboard.logRequest(req.path);
+
   // 1. Redact Request Body (Prompts, Tool Results)
   const { content: redactedBody, tokens, hasRedacted } = redactor.redact(req.body);
   
   if (hasRedacted) {
     log.info({ path: req.path, tokenCount: tokens.size }, 'Redacted sensitive data from request');
     vault.saveTokens(tokens);
+    
+    // Log to Live Dashboard
+    if (dashboard) {
+      tokens.forEach((value, token) => {
+        const type = token.split('_')[1]; // Extract type from [HUSH_TYPE_ID]
+        dashboard!.logRedaction(type, token);
+      });
+    }
   }
 
   try {
@@ -58,35 +98,25 @@ async function proxyRequest(
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      
+      // Security: Use stateful rehydrator to handle tokens split across chunks
+      const rehydrateChunk = vault.createStreamingRehydrator();
 
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          const chunk = decoder.decode(value, { stream: true });
+          const rehydratedChunk = rehydrateChunk(chunk);
           
-          // Process full lines (SSE events)
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; 
-
-          for (const line of lines) {
-            if (line.trim()) {
-              const rehydratedLine = vault.rehydrate(line);
-              const canWrite = res.write(rehydratedLine + '\n');
-              // Handle backpressure
-              if (!canWrite) {
-                await new Promise((resolve) => res.once('drain', resolve));
-              }
-            } else {
-              res.write('\n');
+          if (rehydratedChunk) {
+            const canWrite = res.write(rehydratedChunk);
+            // Handle backpressure
+            if (!canWrite) {
+              await new Promise((resolve) => res.once('drain', resolve));
             }
           }
-        }
-        // Process remaining buffer
-        if (buffer) {
-          res.write(vault.rehydrate(buffer));
         }
       } finally {
         reader.releaseLock();
