@@ -79,7 +79,7 @@ async function proxyRequest(
     // Log redaction events
     if (dashboard) {
       tokens.forEach((value, token) => {
-        const type = token.split('_')[1]; // Extract type from [HUSH_TYPE_ID]
+        const type = token.split('_')[1] ?? 'UNK'; // Extract type from [HUSH_TYPE_ID]
         dashboard!.logRedaction(type, token);
       });
     }
