@@ -52,8 +52,11 @@ npm install -g @aictrl/hush
 
     For **Google Gemini**:
     ```bash
-    # Note: Use this with the Google Generative AI SDK
+    # For the Google Generative AI SDK
     export GOOGLE_GENERATIVE_AI_BASE_URL=http://127.0.0.1:4000
+
+    # For the Gemini CLI
+    export CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
     ```
 
 ## Configuration
