@@ -26,6 +26,10 @@
     "pii",
     "gateway"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aictrl-dev/hush"
+  },
   "author": "AICtrl Team",
   "license": "Apache-2.0",
   "dependencies": {
