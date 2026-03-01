@@ -15,7 +15,7 @@ Hush intercepts this traffic, replaces PII with persistent tokens, and stores th
 
 ## Features
 
-- **Semantic Redaction:** Automatically identifies and masks PII (emails, IPs, secrets, credit cards) using high-entropy random tokens (e.g., `[HUSH_EML_8a2b3c]`).
+- **Semantic Redaction:** Automatically identifies and masks PII (emails, IPs, secrets, credit cards) using deterministic hash-based tokens (e.g., `[USER_EMAIL_f22c5a]`).
 - **Local Rehydration:** Automatically restores original values in the LLM's response locally. You see the real data; the cloud provider only sees tokens.
 - **Live Protection Dashboard:** Run with `--dashboard` to see a real-time TUI showing PII being blocked and intercepted.
 - **Zero-Trust Architecture:** Local-only processing. PII never leaves your machine. Bindings default to `127.0.0.1`.
@@ -45,19 +45,40 @@ npm install -g @aictrl/hush
     claude
     ```
 
-    For **OpenAI-based tools**:
+    For **OpenAI-based tools** (Codex, etc.):
     ```bash
     export OPENAI_BASE_URL=http://127.0.0.1:4000/v1
     ```
 
-    For **Google Gemini**:
+    For **Google Gemini CLI**:
     ```bash
-    # For the Google Generative AI SDK
-    export GOOGLE_GENERATIVE_AI_BASE_URL=http://127.0.0.1:4000
-
-    # For the Gemini CLI
     export CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
     ```
+
+    For **ZhipuAI / OpenCode** (GLM-5):
+    ```bash
+    # Create opencode.json in your project root:
+    {
+      "provider": {
+        "zai-coding-plan": {
+          "options": {
+            "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+          }
+        }
+      }
+    }
+    ```
+
+## Supported Tools
+
+| Tool | Env Variable / Config | Route |
+|------|----------------------|-------|
+| Claude Code | `ANTHROPIC_BASE_URL` | `/v1/messages` → Anthropic |
+| Codex / OpenAI | `OPENAI_BASE_URL` | `/v1/chat/completions` → OpenAI |
+| OpenCode (GLM-5) | `opencode.json` | `/api/paas/v4/**` → ZhipuAI |
+| Gemini CLI | `CODE_ASSIST_ENDPOINT` | `/v1beta/models/**` → Google |
+
+> **Note on Claude Code auth:** Claude Code subscription tokens use OAuth which Anthropic currently blocks for third-party proxies. Use an Anthropic API key instead: `ANTHROPIC_AUTH_TOKEN=sk-ant-... ANTHROPIC_BASE_URL=http://127.0.0.1:4000 claude`
 
 ## Configuration
 
@@ -71,7 +92,7 @@ npm install -g @aictrl/hush
 ## How it Works
 
 1.  **Intercept:** Hush sits locally on your machine as an HTTP proxy.
-2.  **Redact:** Before a request is forwarded to Anthropic/OpenAI, Hush scans the message content for sensitive data and swaps it for tokens (e.g., `[USER_EMAIL_1]`).
+2.  **Redact:** Before a request is forwarded to the LLM provider, Hush scans the message content for sensitive data and swaps it for deterministic hash-based tokens (e.g., `[USER_EMAIL_f22c5a]`).
 3.  **Vault:** The original data is saved in a local, in-memory `TokenVault`.
 4.  **Forward:** The redacted request is sent to the LLM provider.
 5.  **Rehydrate:** When the LLM responds, Hush re-inserts the original values from the vault before showing the response to you.

@@ -86,33 +86,127 @@ export class TokenVault {
    */
   public createStreamingRehydrator() {
     let buffer = '';
+    const maxTokenLen = Math.max(...[...this.vault.keys()].map(t => t.length), 0);
+
+    // Accumulate content fields across SSE events to reassemble split tokens
+    const contentBuffers: Record<string, string> = {};
+    const CONTENT_FIELDS = ['content', 'reasoning_content', 'partial_json'];
+
+    const rehydrateText = (text: string): string => {
+      for (const [token, entry] of this.vault.entries()) {
+        text = text.split(token).join(entry.value);
+      }
+      return text;
+    };
+
+    const flushField = (field: string): string => {
+      if (!contentBuffers[field]) return '';
+      const result = rehydrateText(contentBuffers[field]);
+      contentBuffers[field] = '';
+      return result;
+    };
 
     return (chunk: string): string => {
       buffer += chunk;
 
-      // Check if any vault token could be split across chunks (partial match at end)
-      let holdBack = 0;
-      for (const [token] of this.vault.entries()) {
-        // Check if the end of the buffer is a prefix of any token
-        for (let prefixLen = 1; prefixLen < token.length; prefixLen++) {
-          const prefix = token.substring(0, prefixLen);
-          if (buffer.endsWith(prefix)) {
-            holdBack = Math.max(holdBack, prefixLen);
+      // Detect if this is an SSE stream (contains "data: " lines)
+      const isSSE = buffer.includes('data: ');
+
+      if (!isSSE) {
+        // Raw text mode: hold back potential partial tokens
+        let holdBack = 0;
+        if (maxTokenLen > 0) {
+          for (const [token] of this.vault.entries()) {
+            for (let prefixLen = 1; prefixLen < token.length; prefixLen++) {
+              if (buffer.endsWith(token.substring(0, prefixLen))) {
+                holdBack = Math.max(holdBack, prefixLen);
+              }
+            }
           }
         }
+        const releaseEnd = buffer.length - holdBack;
+        let text = buffer.substring(0, releaseEnd);
+        buffer = buffer.substring(releaseEnd);
+        return rehydrateText(text);
       }
 
-      // Split buffer into releasable text and held-back portion
-      const releaseEnd = buffer.length - holdBack;
-      let text = buffer.substring(0, releaseEnd);
-      buffer = buffer.substring(releaseEnd);
+      // SSE mode: parse each data line, accumulate content fields, rehydrate
+      // Only hold back the last segment if it doesn't end with \n (incomplete line)
+      let processable: string;
+      if (buffer.endsWith('\n')) {
+        processable = buffer;
+        buffer = '';
+      } else {
+        const lastNewline = buffer.lastIndexOf('\n');
+        if (lastNewline === -1) {
+          return ''; // no complete lines yet
+        }
+        processable = buffer.substring(0, lastNewline + 1);
+        buffer = buffer.substring(lastNewline + 1);
+      }
+      const lines = processable.split('\n');
+      // Remove trailing empty string from split (the part after last \n)
+      if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
-      // Replace all vault tokens in the releasable text
-      for (const [token, entry] of this.vault.entries()) {
-        text = text.split(token).join(entry.value);
+      const outputLines: string[] = [];
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ') || line.trim() === 'data: [DONE]') {
+          outputLines.push(line);
+          continue;
+        }
+
+        let parsed: any;
+        try {
+          parsed = JSON.parse(line.slice(6));
+        } catch {
+          outputLines.push(rehydrateText(line));
+          continue;
+        }
+
+        // Look for delta content in OpenAI/ZhipuAI format
+        const delta = parsed?.choices?.[0]?.delta;
+        // Look for delta content in Anthropic format
+        const anthDelta = parsed?.delta;
+
+        const target = delta || anthDelta;
+        if (!target) {
+          outputLines.push('data: ' + JSON.stringify(this.rehydrate(parsed)));
+          continue;
+        }
+
+        let modified = false;
+        for (const field of CONTENT_FIELDS) {
+          const textField = field === 'content' ? 'text' : null;
+          const actualField = typeof target[field] === 'string' ? field
+            : (textField && typeof target[textField] === 'string') ? textField
+            : null;
+          if (!actualField) continue;
+
+          const bufKey = actualField;
+          contentBuffers[bufKey] = (contentBuffers[bufKey] || '') + target[actualField];
+
+          const buf = contentBuffers[bufKey];
+          const lastBracket = buf.lastIndexOf('[');
+          const hasPartialToken = maxTokenLen > 0 && lastBracket >= 0 &&
+            !buf.substring(lastBracket).includes(']') &&
+            buf.length - lastBracket < maxTokenLen;
+
+          if (hasPartialToken) {
+            const safe = buf.substring(0, lastBracket);
+            contentBuffers[bufKey] = buf.substring(lastBracket);
+            target[actualField] = rehydrateText(safe);
+          } else {
+            target[actualField] = flushField(bufKey);
+          }
+          modified = true;
+        }
+
+        // Re-serialize with original SSE framing
+        outputLines.push('data: ' + JSON.stringify(parsed));
       }
 
-      return text;
+      return outputLines.join('\n') + '\n';
     };
   }
 
