@@ -193,7 +193,7 @@ app.post('/v1beta/models/:modelAndAction', async (req, res) => {
  * Catch-all Handler: Forward any other requests to Google
  * This ensures login and metadata calls work correctly.
  */
-app.all('(.*)', async (req, res) => {
+app.all('/:path*', async (req, res) => {
   const targetBase = 'https://generativelanguage.googleapis.com';
   const targetUrl = `${targetBase}${req.url}`;
   const path: string = req.path || '/';
