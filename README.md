@@ -1,6 +1,11 @@
-# Hush 🛡️
+<p align="center">
+  <img src="logo.svg" width="400" alt="Hush Logo" />
+</p>
 
-**Hush** is a Semantic Security Gateway for AI agents. It acts as a local proxy between your AI tools (like Claude Code, Cursor, or custom CLI agents) and LLM providers (Anthropic, OpenAI).
+# hush 🛡️
+
+**hush** is a Semantic Security Gateway for AI agents.
+ It acts as a local proxy between your AI tools (like Claude Code, Cursor, or custom CLI agents) and LLM providers (Anthropic, OpenAI).
 
 Hush ensures that sensitive data—like emails, IP addresses, and secrets—never leaves your machine by redacting it from prompts and tool outputs before they hit the cloud.
 
@@ -64,8 +69,8 @@ npm install -g @aictrl/hush
 ### Setup
 
 ```bash
-git clone https://github.com/aictrl/gateway.git
-cd gateway
+git clone https://github.com/aictrl-dev/hush.git
+cd hush
 npm install
 ```
 
