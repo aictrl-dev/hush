@@ -16,12 +16,14 @@
 
   <!-- ================= LOGO MARK ================= -->
   <g transform="translate(50, 40)">
+    <!-- Brackets -->
     <path d="M 30 10 L 10 10 L 10 110 L 30 110" stroke="#71717a" stroke-width="8" stroke-linecap="square" fill="none" />
     <path d="M 90 10 L 110 10 L 110 110 L 90 110" stroke="#71717a" stroke-width="8" stroke-linecap="square" fill="none" />
     
-    <path d="M 35 25 L 85 25 L 85 85 L 60 105 L 35 85 Z" fill="url(#brand-grad)" />
+    <!-- Wider Traditional Shield -->
+    <path d="M 20 20 C 20 15, 100 15, 100 20 L 100 70 C 100 95, 60 115, 60 115 C 60 115, 20 95, 20 70 Z" fill="url(#brand-grad)" />
     
-    <!-- Masking Asterisk (Amber - #f59e0b) -->
+    <!-- Masking Asterisk (Amber) -->
     <g transform="translate(60, 58) scale(1.1)">
       <path d="M 0 -18 L 0 18 M -15.5 -9 L 15.5 9 M -15.5 9 L 15.5 -9" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" />
     </g>
