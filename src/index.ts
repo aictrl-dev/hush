@@ -79,7 +79,7 @@ async function proxyRequest(
     // Log redaction events
     if (dashboard) {
       tokens.forEach((value, token) => {
-        const type = token.split('_')[1]; // Extract type from [HUSH_TYPE_ID]
+        const type = token.split('_')[1] ?? 'UNK'; // Extract type from [HUSH_TYPE_ID]
         dashboard!.logRedaction(type, token);
       });
     }
@@ -176,6 +176,20 @@ app.post('/v1/chat/completions', async (req, res) => {
 });
 
 /**
+ * Handle ZhipuAI GLM API proxy (OpenCode + GLM-5)
+ * Supports: /api/paas/v4/chat/completions
+ * Used by OpenCode when configured with baseURL: http://127.0.0.1:4000/api/paas/v4
+ */
+app.post('/api/paas/v4/chat/completions', async (req, res) => {
+  const auth = req.headers['authorization'];
+  if (!auth) return res.status(401).json({ error: 'Missing ZhipuAI Authorization' });
+
+  await proxyRequest(req, res, 'https://api.z.ai/api/paas/v4/chat/completions', {
+    'Authorization': auth as string,
+  });
+});
+
+/**
  * Handle Google Gemini API proxy
  * Supports: /v1beta/models/{model}:generateContent
  */
@@ -190,14 +204,23 @@ app.post('/v1beta/models/:modelAndAction', async (req, res) => {
   });
 });
 
+// Health check (must be before catch-all)
+app.get('/health', (req, res) => {
+  const response: any = { status: 'running' };
+  if (process.env.DEBUG === 'true') {
+    response.vaultSize = vault.size;
+  }
+  res.json(response);
+});
+
 /**
  * Catch-all Handler: Forward any other requests to Google
  * This ensures login and metadata calls work correctly.
  */
-app.all('*', async (req, res) => {
+app.all('/*path', async (req, res) => {
   const targetBase = 'https://generativelanguage.googleapis.com';
   const targetUrl = `${targetBase}${req.url}`;
-  
+
   log.info({ path: req.path, method: req.method }, 'Forwarding unknown endpoint to Google');
 
   try {
@@ -218,13 +241,4 @@ app.all('*', async (req, res) => {
     log.error({ err: error, path: req.path }, 'Catch-all forwarding failed');
     res.status(500).json({ error: 'Gateway forwarding failed' });
   }
-});
-
-// Health check
-app.get('/health', (req, res) => {
-  const response: any = { status: 'running' };
-  if (process.env.DEBUG === 'true') {
-    response.vaultSize = vault.size;
-  }
-  res.json(response);
 });

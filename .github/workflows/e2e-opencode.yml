@@ -1,0 +1,126 @@
+name: E2E - OpenCode + GLM-5 via Hush Gateway
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      use_real_api:
+        description: 'Use real ZhipuAI API key (requires ZHIPUAI_API_KEY secret)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-opencode-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-gateway-interception:
+    name: Gateway PII Interception (Mock Upstream)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run E2E interception test
+        run: |
+          chmod +x scripts/e2e-opencode.sh
+          ./scripts/e2e-opencode.sh
+        env:
+          CI: true
+
+  e2e-opencode-live:
+    name: OpenCode + GLM-5 Live E2E
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.use_real_api == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies & build
+        run: npm ci && npm run build
+
+      - name: Start Hush Gateway (background)
+        run: |
+          DEBUG=true node dist/cli.js > /tmp/gateway.log 2>&1 &
+          GATEWAY_PID=$!
+          echo "GATEWAY_PID=$GATEWAY_PID" >> $GITHUB_ENV
+
+          # Wait for gateway to be ready
+          for i in {1..15}; do
+            if curl -sf http://127.0.0.1:4000/health > /dev/null 2>&1; then
+              echo "Gateway is ready"
+              break
+            fi
+            echo "Waiting for gateway... ($i/15)"
+            sleep 1
+          done
+
+      - name: Check vault is empty before test
+        run: |
+          HEALTH_BEFORE=$(curl -sf http://127.0.0.1:4000/health)
+          echo "Health before: $HEALTH_BEFORE"
+          VAULT_BEFORE=$(echo "$HEALTH_BEFORE" | jq -r '.vaultSize // 0')
+          echo "Vault size before: $VAULT_BEFORE"
+
+      - name: Send PII-laden request through gateway to real GLM-5
+        env:
+          ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
+        timeout-minutes: 2
+        run: |
+          # Send a real GLM-5 chat completion through the Hush gateway
+          # This proves PII interception works with the actual ZhipuAI API
+          HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" --max-time 60 \
+            -X POST "http://127.0.0.1:4000/api/paas/v4/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ZHIPU_API_KEY" \
+            -d '{
+              "model": "glm-5",
+              "messages": [{"role": "user", "content": "Please confirm receipt. My email is testuser@example-corp.com and server IP is 10.42.99.7. Credentials: api_key=secret_test_a1b2c3d4e5f6g7h8i9j0"}]
+            }') || true
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $(cat /tmp/response.json | head -c 500)"
+          echo ""
+          echo "--- Gateway logs ---"
+          cat /tmp/gateway.log 2>/dev/null || true
+
+      - name: Verify PII was intercepted
+        run: |
+          HEALTH_AFTER=$(curl -sf http://127.0.0.1:4000/health)
+          echo "Health after: $HEALTH_AFTER"
+          VAULT_AFTER=$(echo "$HEALTH_AFTER" | jq -r '.vaultSize // 0')
+          echo "Vault size after: $VAULT_AFTER"
+
+          if [ "$VAULT_AFTER" -gt 0 ]; then
+            echo "SUCCESS: Gateway vault contains $VAULT_AFTER token(s) - PII was intercepted!"
+          else
+            echo "FAILURE: Gateway vault is empty - PII may not have been intercepted"
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -n "$GATEWAY_PID" ]; then
+            kill $GATEWAY_PID 2>/dev/null || true
+          fi
