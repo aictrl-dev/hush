@@ -44,13 +44,21 @@ describe('Semantic Security Flow (Redaction + Rehydration)', () => {
     expect(content).toBe('My card is [PAYMENT_CARD_1] and it expires soon');
   });
 
-  it('should redact phone numbers', () => {
-    const input = 'Call me at 555-010-0199 or +1 (555) 123-4567';
+  it('should redact phone numbers including complex formats', () => {
+    const input = 'Call me at 555-010-0199 or +1 (555) 123-4567. UK: +44 20 7946 0958';
     const { content, hasRedacted } = redactor.redact(input);
 
     expect(hasRedacted).toBe(true);
     expect(content).toContain('[PHONE_NUMBER_1]');
     expect(content).toContain('[PHONE_NUMBER_2]');
+    expect(content).toContain('[PHONE_NUMBER_3]');
+  });
+
+  it('should not redact numeric IDs that look like partial phones', () => {
+    const input = 'User ID: 12345678, Version: 1.0-alpha';
+    const { hasRedacted } = redactor.redact(input);
+    
+    expect(hasRedacted).toBe(false);
   });
 
   it('should re-hydrate redacted content accurately using the vault', () => {

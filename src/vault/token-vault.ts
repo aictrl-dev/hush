@@ -9,7 +9,15 @@
  * Vault for storing and re-applying redacted tokens.
  */
 export class TokenVault {
-  private vault: Map<string, string> = new Map();
+  private vault: Map<string, { value: string; timestamp: number }> = new Map();
+  private readonly ttl: number;
+
+  /**
+   * @param ttlMs - Time to live in milliseconds (default: 1 hour)
+   */
+  constructor(ttlMs: number = 60 * 60 * 1000) {
+    this.ttl = ttlMs;
+  }
 
   /**
    * Save a set of tokens and their original values to the vault.
@@ -17,9 +25,11 @@ export class TokenVault {
    * @param tokens - Map of tokens to cleartext values.
    */
   public saveTokens(tokens: Map<string, string>): void {
+    const now = Date.now();
     for (const [token, value] of tokens) {
-      this.vault.set(token, value);
+      this.vault.set(token, { value, timestamp: now });
     }
+    this.prune();
   }
 
   /**
@@ -41,8 +51,8 @@ export class TokenVault {
       if (typeof node === 'string') {
         let text = node;
         // Efficiently replace all tokens
-        for (const [token, value] of this.vault.entries()) {
-          text = text.split(token).join(value);
+        for (const [token, entry] of this.vault.entries()) {
+          text = text.split(token).join(entry.value);
         }
         return text;
       }
@@ -66,13 +76,26 @@ export class TokenVault {
   }
 
   /**
+   * Remove expired tokens from the vault.
+   */
+  private prune(): void {
+    const now = Date.now();
+    for (const [token, entry] of this.vault.entries()) {
+      if (now - entry.timestamp > this.ttl) {
+        this.vault.delete(token);
+      }
+    }
+  }
+
+  /**
    * Get the original value for a specific token.
    * 
    * @param token - The token to look up.
    * @returns The original cleartext or undefined if not found.
    */
   public get(token: string): string | undefined {
-    return this.vault.get(token);
+    const entry = this.vault.get(token);
+    return entry?.value;
   }
 
   /**

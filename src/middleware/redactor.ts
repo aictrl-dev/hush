@@ -31,12 +31,12 @@ export class Redactor {
     IPV4: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
     /** IPv6 address regex */
     IPV6: /(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))/g,
-    /** Generic API Key / Secret pattern */
-    SECRET: /(?:api[-_]?key|secret|password|token|bearer|auth)["']?\s*[:=]\s*["']?([a-zA-Z0-9\-_]{16,})["']?/gi,
+    /** Generic API Key / Secret pattern (robust version) */
+    SECRET: /(?:api[-_]?key|secret|password|token|bearer|auth)["']?\s*[:=]\s*["']?([a-zA-Z0-9\-_!@#$%^&*()=+]{16,})["']?/gi,
     /** Credit Card (basic) */
     CREDIT_CARD: /\b(?:\d[ -]*?){13,16}\b/g,
-    /** Phone Numbers (common international and US formats) */
-    PHONE: /(?:\+\d{1,3}[- ]?)?\(?\d{2,3}\)?[- ]?\d{3,4}[- ]?\d{4}/g,
+    /** Phone Numbers (robust version) */
+    PHONE: /(?:^|[\s:;])(?:\+\d{1,3}[-. ]?)?\(?\d{2,4}\)?[-. ]\d{3,4}[-. ]\d{3,4}(?:\s*(?:ext|x)\s*\d+)?/g,
   };
 
   /**

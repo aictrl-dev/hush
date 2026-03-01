@@ -105,6 +105,20 @@ describe('Hush Proxy E2E Tests', () => {
       expect(response.body.choices[0].message.content).toBe('Rehydrated: bulat@aictrl.dev');
       expect(scope.isDone()).toBe(true);
     });
+
+    it('should forward upstream error status and body', async () => {
+      nock('https://api.openai.com')
+        .post('/v1/chat/completions')
+        .reply(429, { error: { message: 'Rate limit exceeded' } });
+
+      const response = await request(app)
+        .post('/v1/chat/completions')
+        .set('Authorization', 'Bearer test-token')
+        .send({ model: 'gpt-4o', messages: [{ role: 'user', content: 'hi' }] });
+
+      expect(response.status).toBe(429);
+      expect(JSON.parse(response.text).error.message).toBe('Rate limit exceeded');
+    });
   });
 
   describe('Health Check', () => {
