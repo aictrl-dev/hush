@@ -5,8 +5,8 @@
       <stop offset="100%" stop-color="#7c3aed"/>
     </linearGradient>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@800&amp;display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600&amp;display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&amp;display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500&amp;display=swap');
       .mono-text { font-family: 'JetBrains Mono', monospace; }
       .sans-text { font-family: 'Inter', sans-serif; }
     </style>
@@ -16,9 +16,9 @@
 
   <!-- ================= LOGO MARK ================= -->
   <g transform="translate(50, 40)">
-    <!-- Brackets -->
-    <path d="M 30 10 L 10 10 L 10 110 L 30 110" stroke="#71717a" stroke-width="8" stroke-linecap="square" fill="none" />
-    <path d="M 90 10 L 110 10 L 110 110 L 90 110" stroke="#71717a" stroke-width="8" stroke-linecap="square" fill="none" />
+    <!-- Brackets: Miter Join, Neutral 500 (#71717a) per Brand Book -->
+    <path d="M 30 10 L 10 10 L 10 110 L 30 110" stroke="#71717a" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
+    <path d="M 90 10 L 110 10 L 110 110 L 90 110" stroke="#71717a" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
     
     <!-- Wider Traditional Shield -->
     <path d="M 20 20 C 20 15, 100 15, 100 20 L 100 70 C 100 95, 60 115, 60 115 C 60 115, 20 95, 20 70 Z" fill="url(#brand-grad)" />
@@ -30,16 +30,19 @@
   </g>
 
   <!-- ================= TYPOGRAPHY ================= -->
-  <text x="200" y="115" class="mono-text" font-size="72" font-weight="800" fill="#fafafa" letter-spacing="-0.02em">HUSH</text>
-  <text x="205" y="150" class="sans-text" font-size="16" font-weight="500" fill="#a1a1aa" letter-spacing="0.1em">SEMANTIC GATEWAY</text>
+  <!-- Lowercase 'hush' to match parent brand DNA. Weight 700. Tracking -0.03em -->
+  <text x="200" y="115" class="mono-text" font-size="82" font-weight="700" fill="#fafafa" letter-spacing="-0.03em">hush</text>
+  
+  <!-- Subtitle: Inter 500 -->
+  <text x="205" y="150" class="sans-text" font-size="16" font-weight="500" fill="#a1a1aa" letter-spacing="0.1em">semantic security gateway</text>
 
-  <!-- Brand Signature -->
+  <!-- Brand Signature Badge: Fixed Token Mapping -->
   <g transform="translate(420, 70)">
     <rect x="0" y="0" width="130" height="32" rx="16" fill="#4c6ef5" opacity="0.15" stroke="#4c6ef5" stroke-opacity="0.3" stroke-width="1"/>
     <text x="65" y="20" class="mono-text" font-size="11" font-weight="700" text-anchor="middle" dominant-baseline="middle">
-      <tspan fill="#a1a1aa">[</tspan>
+      <tspan fill="#71717a">[</tspan>
       <tspan fill="#4c6ef5">ai</tspan>
-      <tspan fill="#a1a1aa">]</tspan>
+      <tspan fill="#71717a">]</tspan>
       <tspan fill="#fafafa">ctrl</tspan>
     </text>
   </g>

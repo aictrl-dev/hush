@@ -1,8 +1,8 @@
 <svg width="600" height="200" viewBox="0 0 600 200" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;700&amp;display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;600&amp;display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&amp;display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500&amp;display=swap');
       .mono-text { font-family: 'JetBrains Mono', monospace; }
       .sans-text { font-family: 'Inter', sans-serif; }
     </style>
@@ -10,27 +10,27 @@
 
   <!-- ================= LOGO MARK ================= -->
   <g transform="translate(60, 50)">
-    
-    <!-- Outer Brackets [ ] -->
-    <path d="M 25 0 L 0 0 L 0 100 L 25 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" fill="none" />
-    <path d="M 75 0 L 100 0 L 100 100 L 75 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" fill="none" />
+    <!-- Brackets: Miter Join, Neutral 400 (#a1a1aa) per Brand Book -->
+    <path d="M 25 0 L 0 0 L 0 100 L 25 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
+    <path d="M 75 0 L 100 0 L 100 100 L 75 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
 
     <!-- Robust Traditional Shield -->
-    <!-- Path: Move to top-left, Curve to top-right, Line to bottom-point, Line back to top-left -->
     <path d="M 20 15 C 20 10, 80 10, 80 15 L 80 60 C 80 85, 50 100, 50 100 C 50 100, 20 85, 20 60 Z" fill="#18181b" />
     
-    <!-- Masking Asterisk (Centered in Shield) -->
+    <!-- Masking Asterisk -->
     <g transform="translate(50, 48) scale(0.9)">
       <path d="M 0 -18 L 0 18 M -15.5 -9 L 15.5 9 M -15.5 9 L 15.5 -9" stroke="#fafafa" stroke-width="6" stroke-linecap="round" />
     </g>
-
   </g>
 
   <!-- ================= TYPOGRAPHY ================= -->
-  <text x="190" y="110" class="mono-text" font-size="72" font-weight="300" fill="#18181b" letter-spacing="0.05em">HUSH</text>
-  <text x="195" y="145" class="sans-text" font-size="14" font-weight="500" fill="#52525b" letter-spacing="0.3em">SEMANTIC SECURITY</text>
+  <!-- Lowercase 'hush', Weight 700, Tracking -0.03em -->
+  <text x="190" y="110" class="mono-text" font-size="82" font-weight="700" fill="#18181b" letter-spacing="-0.03em">hush</text>
+  
+  <!-- Subtitle: Inter 500, Neutral 600 -->
+  <text x="195" y="145" class="sans-text" font-size="14" font-weight="500" fill="#52525b" letter-spacing="0.3em">semantic security gateway</text>
 
-  <!-- Brand Signature -->
+  <!-- Brand Signature: Exact Brand Book Alignment -->
   <g transform="translate(430, 160)">
     <text class="mono-text" font-size="10" font-weight="700">
       <tspan fill="#a1a1aa">[</tspan>
