@@ -42,10 +42,15 @@ export class TokenVault {
     // Return early if no tokens in vault
     if (this.vault.size === 0) return input;
 
-    // Deep copy input for objects
-    const output = typeof input === 'object' && input !== null 
-      ? JSON.parse(JSON.stringify(input)) 
-      : input;
+    // Security: Use structuredClone for safe deep copies (addresses review)
+    let output: any;
+    try {
+      output = typeof input === 'object' && input !== null 
+        ? structuredClone(input) 
+        : input;
+    } catch (e) {
+      output = input;
+    }
 
     const process = (node: any): any => {
       if (typeof node === 'string') {
@@ -73,6 +78,70 @@ export class TokenVault {
     };
 
     return process(output);
+  }
+
+  /**
+   * Create a stateful rehydrator for processing streaming chunks.
+   * Handles cases where tokens are split across chunks.
+   */
+  public createStreamingRehydrator() {
+    let buffer = '';
+    // Security: Any token starts with [HUSH_ and ends with ]
+    const TOKEN_START = '[HUSH_';
+    const TOKEN_END = ']';
+
+    return (chunk: string): string => {
+      buffer += chunk;
+      
+      let result = '';
+      let i = 0;
+      
+      while (i < buffer.length) {
+        const startIdx = buffer.indexOf(TOKEN_START, i);
+        
+        if (startIdx === -1) {
+          // No more tokens starting in the buffer. 
+          // We can safely release everything up to the last potential partial token start.
+          const lastPotentialStart = buffer.lastIndexOf('[', buffer.length - 1);
+          if (lastPotentialStart > i) {
+            result += buffer.substring(i, lastPotentialStart);
+            buffer = buffer.substring(lastPotentialStart);
+          } else {
+            result += buffer.substring(i);
+            buffer = '';
+          }
+          break;
+        }
+
+        // We found a token start. Release everything before it.
+        result += buffer.substring(i, startIdx);
+        
+        const endIdx = buffer.indexOf(TOKEN_END, startIdx);
+        if (endIdx === -1) {
+          // Token is incomplete. Keep it in the buffer and stop.
+          buffer = buffer.substring(startIdx);
+          break;
+        }
+
+        // We have a full token!
+        const fullToken = buffer.substring(startIdx, endIdx + 1);
+        const originalValue = this.get(fullToken);
+        
+        if (originalValue) {
+          result += originalValue;
+        } else {
+          result += fullToken; // Token not in vault, keep as is
+        }
+        
+        i = endIdx + 1;
+        if (i >= buffer.length) {
+          buffer = '';
+          break;
+        }
+      }
+      
+      return result;
+    };
   }
 
   /**
