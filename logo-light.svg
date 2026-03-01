@@ -1,85 +1,38 @@
 <svg width="600" height="200" viewBox="0 0 600 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- 
-    HUSH by [ai]ctrl.dev (Light Version)
-    Brand-aligned Logo
-    Colors (On Light):
-    - Primary Indigo: #4c6ef5
-    - Accent Amber: #f59e0b
-    - Neutral Dark: #18181b
-    - Neutral Muted: #a1a1aa
-    - Neutral Light: #fafafa
-  -->
-
   <defs>
-    <!-- Brand Gradient -->
     <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#4c6ef5"/>
       <stop offset="100%" stop-color="#7c3aed"/>
     </linearGradient>
-    
-    <!-- Noise Filter for tactile depth (Brand Book requirement) -->
-    <filter id="noise">
-      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/>
-      <feColorMatrix type="saturate" values="0"/>
-      <feBlend mode="multiply" in2="SourceGraphic" result="monoNoise"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.03"/></feComponentTransfer>
-      <feBlend mode="overlay" in2="SourceGraphic"/>
-    </filter>
-
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&amp;display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600&amp;display=swap');
-      
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&amp;display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500&amp;display=swap');
       .mono-text { font-family: 'JetBrains Mono', monospace; }
       .sans-text { font-family: 'Inter', sans-serif; }
     </style>
   </defs>
 
-  <!-- Background (Neutral 50) -->
   <rect width="600" height="200" rx="24" fill="#fafafa" stroke="#e4e4e7" stroke-width="1"/>
-  <rect width="600" height="200" rx="24" fill="url(#brand-grad)" opacity="0.02" filter="url(#noise)"/>
 
   <!-- ================= LOGO MARK ================= -->
   <g transform="translate(50, 40)">
-    
-    <!-- Outer Brackets [ ] (Neutral 400) -->
     <path d="M 30 10 L 10 10 L 10 110 L 30 110" stroke="#a1a1aa" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
     <path d="M 90 10 L 110 10 L 110 110 L 90 110" stroke="#a1a1aa" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
-
-    <!-- Center Shield / Redaction Block -->
-    <path d="M 35 25 L 85 25 L 85 85 L 60 105 L 35 85 Z" fill="url(#brand-grad)" />
-    
-    <!-- Data Redaction Lines inside Shield -->
-    <line x1="45" y1="45" x2="75" y2="45" stroke="#fafafa" stroke-width="6" stroke-linecap="round" />
-    <line x1="45" y1="65" x2="65" y2="65" stroke="#f59e0b" stroke-width="6" stroke-linecap="round" />
-    
-    <!-- Abstract Lock Dot -->
-    <circle cx="60" cy="80" r="4" fill="#fafafa" />
-
+    <path d="M 20 20 C 20 15, 100 15, 100 20 L 100 70 C 100 95, 60 115, 60 115 C 60 115, 20 95, 20 70 Z" fill="url(#brand-grad)" />
+    <g transform="translate(60, 58) scale(1.1)">
+      <path d="M 0 -18 L 0 18 M -15.5 -9 L 15.5 9 M -15.5 9 L 15.5 -9" stroke="#f59e0b" stroke-width="7" stroke-linecap="round" />
+    </g>
   </g>
 
   <!-- ================= TYPOGRAPHY ================= -->
-  
-  <!-- Main "HUSH" Text (Neutral 900) -->
-  <text x="200" y="115" class="mono-text" font-size="72" font-weight="800" fill="#18181b" letter-spacing="-0.02em">HUSH</text>
-  
-  <!-- "Semantic Gateway" Subtitle (Neutral 600) -->
-  <text x="205" y="150" class="sans-text" font-size="16" font-weight="500" fill="#52525b" letter-spacing="0.1em">SEMANTIC GATEWAY</text>
+  <text x="200" y="115" class="mono-text" font-size="82" font-weight="700" fill="#18181b" letter-spacing="-0.03em">hush</text>
+  <text x="205" y="150" class="sans-text" font-size="16" font-weight="500" fill="#52525b" letter-spacing="0.1em">semantic security gateway</text>
 
-  <!-- "by [ai]ctrl.dev" Badge -->
+  <!-- Brand Signature: aictrl.dev -->
   <g transform="translate(420, 70)">
-    <rect x="0" y="0" width="130" height="32" rx="16" fill="#4c6ef5" opacity="0.1" stroke="#4c6ef5" stroke-opacity="0.2" stroke-width="1"/>
+    <rect x="0" y="0" width="130" height="32" rx="16" fill="#4c6ef5" opacity="0.05" stroke="#4c6ef5" stroke-opacity="0.1" stroke-width="1"/>
     <text x="65" y="20" class="mono-text" font-size="11" font-weight="700" text-anchor="middle" dominant-baseline="middle">
-      <tspan fill="#a1a1aa">[</tspan>
-      <tspan fill="#4c6ef5">ai</tspan>
-      <tspan fill="#a1a1aa">]</tspan>
-      <tspan fill="#18181b">ctrl</tspan>
+      <tspan fill="#4c6ef5">ai</tspan><tspan fill="#18181b">ctrl</tspan><tspan fill="#a1a1aa">.dev</tspan>
     </text>
   </g>
-
-  <!-- Redaction blocks crossing out background noise -->
-  <rect x="425" y="140" width="40" height="8" rx="4" fill="#e4e4e7" opacity="0.8"/>
-  <rect x="475" y="140" width="70" height="8" rx="4" fill="#e4e4e7" opacity="0.8"/>
-  <rect x="425" y="156" width="90" height="8" rx="4" fill="#e4e4e7" opacity="0.8"/>
-
 </svg>

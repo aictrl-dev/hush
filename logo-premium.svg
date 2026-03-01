@@ -10,33 +10,22 @@
 
   <!-- ================= LOGO MARK ================= -->
   <g transform="translate(60, 50)">
-    <!-- Brackets: Miter Join, Neutral 400 (#a1a1aa) per Brand Book -->
     <path d="M 25 0 L 0 0 L 0 100 L 25 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
     <path d="M 75 0 L 100 0 L 100 100 L 75 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
-
-    <!-- Robust Traditional Shield -->
     <path d="M 20 15 C 20 10, 80 10, 80 15 L 80 60 C 80 85, 50 100, 50 100 C 50 100, 20 85, 20 60 Z" fill="#18181b" />
-    
-    <!-- Masking Asterisk -->
     <g transform="translate(50, 48) scale(0.9)">
       <path d="M 0 -18 L 0 18 M -15.5 -9 L 15.5 9 M -15.5 9 L 15.5 -9" stroke="#fafafa" stroke-width="6" stroke-linecap="round" />
     </g>
   </g>
 
   <!-- ================= TYPOGRAPHY ================= -->
-  <!-- Lowercase 'hush', Weight 700, Tracking -0.03em -->
   <text x="190" y="110" class="mono-text" font-size="82" font-weight="700" fill="#18181b" letter-spacing="-0.03em">hush</text>
-  
-  <!-- Subtitle: Inter 500, Neutral 600 -->
   <text x="195" y="145" class="sans-text" font-size="14" font-weight="500" fill="#52525b" letter-spacing="0.3em">semantic security gateway</text>
 
-  <!-- Brand Signature: Exact Brand Book Alignment -->
+  <!-- Brand Signature: aictrl.dev -->
   <g transform="translate(430, 160)">
     <text class="mono-text" font-size="10" font-weight="700">
-      <tspan fill="#a1a1aa">[</tspan>
-      <tspan fill="#4c6ef5">ai</tspan>
-      <tspan fill="#a1a1aa">]</tspan>
-      <tspan fill="#18181b">ctrl</tspan>
+      <tspan fill="#71717a">ai</tspan><tspan fill="#18181b">ctrl</tspan><tspan fill="#a1a1aa">.dev</tspan>
     </text>
   </g>
 </svg>
