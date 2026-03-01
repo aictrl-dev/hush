@@ -1,8 +1,6 @@
 <p align="center">
-  <img src="logo.svg" width="400" alt="Hush Logo" />
+  <img src="logo.svg" width="400" alt="hush Logo" />
 </p>
-
-# hush 🛡️
 
 **hush** is a Semantic Security Gateway for AI agents.
  It acts as a local proxy between your AI tools (like Claude Code, Cursor, or custom CLI agents) and LLM providers (Anthropic, OpenAI).
