@@ -1,18 +1,13 @@
 <svg width="600" height="200" viewBox="0 0 600 200" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!-- 
-    HUSH High-End Premium Grayscale (Fully Brand Aligned)
-    Colors from [ai]ctrl.dev Brand Book:
-    - primary-ink: #18181b (Neutral 900)
-    - secondary-ink: #52525b (Neutral 600)
-    - bracket-gray: #a1a1aa (Neutral 400)
-    - subtle-gray: #d4d4d8 (Neutral 300)
+    HUSH High-End Premium Grayscale (Masking Edition)
+    Colors: #18181b, #a1a1aa, #52525b
   -->
 
   <defs>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;700&amp;display=swap');
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;600&amp;display=swap');
-      
       .mono-text { font-family: 'JetBrains Mono', monospace; }
       .sans-text { font-family: 'Inter', sans-serif; }
     </style>
@@ -21,29 +16,25 @@
   <!-- ================= LOGO MARK ================= -->
   <g transform="translate(60, 50)">
     
-    <!-- Outer Brackets [ ] (Neutral 400 - #a1a1aa) -->
-    <!-- Matching the 'square' stroke-linejoin from the brand book -->
-    <path d="M 25 0 L 0 0 L 0 100 L 25 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
-    <path d="M 75 0 L 100 0 L 100 100 L 75 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" fill="none" />
+    <!-- Outer Brackets [ ] (Neutral 400) -->
+    <path d="M 25 0 L 0 0 L 0 100 L 25 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" fill="none" />
+    <path d="M 75 0 L 100 0 L 100 100 L 75 100" stroke="#a1a1aa" stroke-width="4" stroke-linecap="square" fill="none" />
 
-    <!-- Redaction Shield (Neutral 900 - #18181b) -->
+    <!-- Redaction Shield (Neutral 900) -->
     <path d="M 30 20 L 70 20 L 70 70 L 50 90 L 30 70 Z" fill="#18181b" />
     
-    <!-- Abstract Redaction Lines (Neutral 300 - #d4d4d8) -->
-    <rect x="40" y="40" width="20" height="4" rx="1" fill="#d4d4d8" />
-    <rect x="40" y="50" width="12" height="4" rx="1" fill="#52525b" />
+    <!-- Masking Asterisk (Custom Vector Star) -->
+    <g transform="translate(50, 48) scale(0.8)">
+      <path d="M 0 -18 L 0 18 M -15.5 -9 L 15.5 9 M -15.5 9 L 15.5 -9" stroke="#fafafa" stroke-width="6" stroke-linecap="round" />
+    </g>
 
   </g>
 
   <!-- ================= TYPOGRAPHY ================= -->
-  
-  <!-- "HUSH": JetBrains Mono, Light (300), Neutral 900 -->
   <text x="190" y="110" class="mono-text" font-size="72" font-weight="300" fill="#18181b" letter-spacing="0.05em">HUSH</text>
-  
-  <!-- Subtitle: Inter, Medium (500), Neutral 600, High Tracking -->
   <text x="195" y="145" class="sans-text" font-size="14" font-weight="500" fill="#52525b" letter-spacing="0.3em">SEMANTIC SECURITY</text>
 
-  <!-- Brand Signature Badge: Exact alignment with Brand Book logic -->
+  <!-- Brand Signature -->
   <g transform="translate(430, 160)">
     <text class="mono-text" font-size="10" font-weight="700">
       <tspan fill="#a1a1aa">[</tspan>
@@ -52,5 +43,4 @@
       <tspan fill="#18181b">ctrl</tspan>
     </text>
   </g>
-
 </svg>
