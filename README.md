@@ -15,10 +15,11 @@ Hush intercepts this traffic, replaces PII with persistent tokens, and stores th
 
 ## Features
 
-- **Semantic Redaction:** Automatically identifies and masks PII (emails, IPs, secrets, credit cards).
-- **Local rehydration:** Automatically restores original values in the LLM's response so you see the real data while the AI only sees tokens.
-- **Protocol Agnostic:** Works with any tool the AI uses (CLI, databases, local files) because it intercepts at the API layer.
-- **Zero Configuration:** Drop-in replacement for Anthropic/OpenAI base URLs.
+- **Semantic Redaction:** Automatically identifies and masks PII (emails, IPs, secrets, credit cards) using high-entropy random tokens (e.g., `[HUSH_EML_8a2b3c]`).
+- **Local Rehydration:** Automatically restores original values in the LLM's response locally. You see the real data; the cloud provider only sees tokens.
+- **Live Protection Dashboard:** Run with `--dashboard` to see a real-time TUI showing PII being blocked and intercepted.
+- **Zero-Trust Architecture:** Local-only processing. PII never leaves your machine. Bindings default to `127.0.0.1`.
+- **Streaming Support:** Robust rehydration for SSE (Server-Sent Events) even when tokens are split across network chunks.
 
 ## Getting Started
 
@@ -30,24 +31,33 @@ npm install -g @aictrl/hush
 
 ### Usage
 
-1.  **Start the Hush Gateway:**
+1.  **Start the hush Gateway:**
     ```bash
-    hush
+    hush --dashboard
     ```
-    Hush will start listening on `http://localhost:4000`.
+    hush will start listening on `http://127.0.0.1:4000`.
 
 2.  **Point your AI tool to the Gateway:**
 
     For **Claude Code**:
     ```bash
-    export ANTHROPIC_BASE_URL=http://localhost:4000
+    export ANTHROPIC_BASE_URL=http://127.0.0.1:4000
     claude
     ```
 
     For **OpenAI-based tools**:
     ```bash
-    export OPENAI_BASE_URL=http://localhost:4000
+    export OPENAI_BASE_URL=http://127.0.0.1:4000
     ```
+
+## Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | The port the gateway listens on. | `4000` |
+| `HUSH_HOST` | The host interface to bind to. | `127.0.0.1` |
+| `HUSH_AUTH_TOKEN` | If set, the proxy requires `Authorization: Bearer <token>` | `undefined` |
+| `HUSH_DASHBOARD` | Set to `true` to enable the TUI dashboard. | `false` |
 
 ## How it Works
 
