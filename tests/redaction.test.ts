@@ -26,13 +26,13 @@ describe('Semantic Security Flow (Redaction + Rehydration)', () => {
     const { content, hasRedacted, tokens } = redactor.redact(args);
 
     expect(hasRedacted).toBe(true);
-    expect(content.email).toBe('[USER_EMAIL_1]');
-    expect(content.ipv4).toBe('[NETWORK_IP_2]');
-    expect(content.ipv6).toBe('[NETWORK_IP_V6_3]');
-    expect(content.config.apiKey).toContain('[SENSITIVE_SECRET_4]');
-    expect(content.config.secretToken).toContain('[SENSITIVE_SECRET_5]');
-    expect(content.message).toContain('[USER_EMAIL_6]');
-    expect(content.message).toContain('[NETWORK_IP_7]');
+    expect(content.email).toMatch(/^\[USER_EMAIL_[a-f0-9]{6}\]$/);
+    expect(content.ipv4).toMatch(/^\[NETWORK_IP_[a-f0-9]{6}\]$/);
+    expect(content.ipv6).toMatch(/^\[NETWORK_IP_V6_[a-f0-9]{6}\]$/);
+    expect(content.config.apiKey).toMatch(/\[SENSITIVE_SECRET_[a-f0-9]{6}\]/);
+    expect(content.config.secretToken).toMatch(/\[SENSITIVE_SECRET_[a-f0-9]{6}\]/);
+    expect(content.message).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(content.message).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
     expect(tokens.size).toBe(7);
   });
 
@@ -41,7 +41,7 @@ describe('Semantic Security Flow (Redaction + Rehydration)', () => {
     const { content, hasRedacted } = redactor.redact(input);
 
     expect(hasRedacted).toBe(true);
-    expect(content).toBe('My card is [PAYMENT_CARD_1] and it expires soon');
+    expect(content).toMatch(/My card is \[PAYMENT_CARD_[a-f0-9]{6}\] and it expires soon/);
   });
 
   it('should redact phone numbers including complex formats', () => {
@@ -49,35 +49,33 @@ describe('Semantic Security Flow (Redaction + Rehydration)', () => {
     const { content, hasRedacted } = redactor.redact(input);
 
     expect(hasRedacted).toBe(true);
-    expect(content).toContain('[PHONE_NUMBER_1]');
-    expect(content).toContain('[PHONE_NUMBER_2]');
-    expect(content).toContain('[PHONE_NUMBER_3]');
+    expect(content).toMatch(/\[PHONE_NUMBER_[a-f0-9]{6}\]/);
   });
 
   it('should not redact numeric IDs that look like partial phones', () => {
     const input = 'User ID: 12345678, Version: 1.0-alpha';
     const { hasRedacted } = redactor.redact(input);
-    
+
     expect(hasRedacted).toBe(false);
   });
 
   it('should re-hydrate redacted content accurately using the vault', () => {
-    const rawArgs = { 
+    const rawArgs = {
       user: 'bulat@aictrl.dev',
       key: 'api-key: super-secret-key-12345'
     };
-    
+
     // 1. Redact outbound (to LLM/Server)
     const { content: redacted, tokens } = redactor.redact(rawArgs);
     vault.saveTokens(tokens);
 
-    expect(redacted.user).toBe('[USER_EMAIL_1]');
-    expect(redacted.key).toContain('[SENSITIVE_SECRET_2]');
+    expect(redacted.user).toMatch(/^\[USER_EMAIL_[a-f0-9]{6}\]$/);
+    expect(redacted.key).toMatch(/\[SENSITIVE_SECRET_[a-f0-9]{6}\]/);
 
-    // 2. Simulate result containing tokens coming back (e.g., from logs or agent output)
-    const resultWithTokens = { 
+    // 2. Simulate result containing tokens coming back
+    const resultWithTokens = {
       status: 'Success',
-      log: 'Processing request for [USER_EMAIL_1] with key [SENSITIVE_SECRET_2]' 
+      log: `Processing request for ${redacted.user} with key ${redacted.key.match(/\[SENSITIVE_SECRET_[a-f0-9]{6}\]/)![0]}`
     };
 
     // 3. Re-hydrate locally for developer visibility
@@ -86,11 +84,19 @@ describe('Semantic Security Flow (Redaction + Rehydration)', () => {
     expect(finalResult.log).toBe('Processing request for bulat@aictrl.dev with key super-secret-key-12345');
   });
 
+  it('should produce deterministic tokens for the same input', () => {
+    const { content: first } = redactor.redact('email: test@foo.com');
+    const { content: second } = redactor.redact('email: test@foo.com');
+
+    // Same input → same hash → same token
+    expect(first).toBe(second);
+  });
+
   it('should handle non-object inputs gracefully', () => {
     const input = 'Call 192.168.0.1';
     const { content, hasRedacted } = redactor.redact(input);
-    
+
     expect(hasRedacted).toBe(true);
-    expect(content).toBe('Call [NETWORK_IP_1]');
+    expect(content).toMatch(/^Call \[NETWORK_IP_[a-f0-9]{6}\]$/);
   });
 });

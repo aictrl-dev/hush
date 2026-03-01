@@ -139,7 +139,7 @@ describe('Universal Proxy Mode', () => {
       // Now test catch-all rehydration
       nock('https://generativelanguage.googleapis.com')
         .post('/v1/custom-endpoint')
-        .reply(200, { response: 'Your email is [USER_EMAIL_1]' });
+        .reply(200, { response: 'Your email is [USER_EMAIL_f22c5a]' });
 
       const response = await request(app)
         .post('/v1/custom-endpoint')

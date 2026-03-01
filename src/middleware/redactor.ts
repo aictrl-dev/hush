@@ -5,6 +5,13 @@
  * Interoperable with TokenVault for re-hydration.
  */
 
+import { createHash } from 'crypto';
+
+/** Deterministic short hash of a value (first 6 hex chars of SHA-256). */
+function tokenHash(value: string): string {
+  return createHash('sha256').update(value).digest('hex').slice(0, 6);
+}
+
 /**
  * Result of a redaction operation.
  */
@@ -62,7 +69,7 @@ export class Redactor {
         const normalizedKey = keyName.toLowerCase().replace(/[-_]/g, '');
         if (SENSITIVE_KEYS.some(k => normalizedKey.includes(k))) {
           hasRedacted = true;
-          const token = `[SENSITIVE_SECRET_${tokens.size + 1}]`;
+          const token = `[SENSITIVE_SECRET_${tokenHash(node)}]`;
           tokens.set(token, node);
           return token;
         }
@@ -74,7 +81,7 @@ export class Redactor {
         // Redact Emails
         text = text.replace(Redactor.PATTERNS.EMAIL, (match) => {
           hasRedacted = true;
-          const token = `[USER_EMAIL_${tokens.size + 1}]`;
+          const token = `[USER_EMAIL_${tokenHash(match)}]`;
           tokens.set(token, match);
           return token;
         });
@@ -82,7 +89,7 @@ export class Redactor {
         // Redact IP Addresses (v4)
         text = text.replace(Redactor.PATTERNS.IPV4, (match) => {
           hasRedacted = true;
-          const token = `[NETWORK_IP_${tokens.size + 1}]`;
+          const token = `[NETWORK_IP_${tokenHash(match)}]`;
           tokens.set(token, match);
           return token;
         });
@@ -90,7 +97,7 @@ export class Redactor {
         // Redact IP Addresses (v6)
         text = text.replace(Redactor.PATTERNS.IPV6, (match) => {
           hasRedacted = true;
-          const token = `[NETWORK_IP_V6_${tokens.size + 1}]`;
+          const token = `[NETWORK_IP_V6_${tokenHash(match)}]`;
           tokens.set(token, match);
           return token;
         });
@@ -98,7 +105,7 @@ export class Redactor {
         // Redact Secrets in text (e.g. "api_key=...")
         text = text.replace(Redactor.PATTERNS.SECRET, (match, p1) => {
           hasRedacted = true;
-          const token = `[SENSITIVE_SECRET_${tokens.size + 1}]`;
+          const token = `[SENSITIVE_SECRET_${tokenHash(p1)}]`;
           tokens.set(token, p1);
           return match.replace(p1, token);
         });
@@ -106,7 +113,7 @@ export class Redactor {
         // Redact Credit Cards
         text = text.replace(Redactor.PATTERNS.CREDIT_CARD, (match) => {
           hasRedacted = true;
-          const token = `[PAYMENT_CARD_${tokens.size + 1}]`;
+          const token = `[PAYMENT_CARD_${tokenHash(match)}]`;
           tokens.set(token, match);
           return token;
         });
@@ -114,7 +121,7 @@ export class Redactor {
         // Redact Phone Numbers
         text = text.replace(Redactor.PATTERNS.PHONE, (match) => {
           hasRedacted = true;
-          const token = `[PHONE_NUMBER_${tokens.size + 1}]`;
+          const token = `[PHONE_NUMBER_${tokenHash(match)}]`;
           tokens.set(token, match);
           return token;
         });

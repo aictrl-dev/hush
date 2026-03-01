@@ -116,7 +116,8 @@ async function proxyRequest(
     }
 
     // Case A: Streaming
-    if (req.body?.stream && response.body) {
+    const isStreaming = req.body?.stream === true || req.body?.stream === 'true';
+    if (isStreaming && response.body) {
       log.info({ path: req.path }, 'Starting stream proxy');
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -173,6 +174,7 @@ app.post('/v1/messages', async (req, res) => {
   const headers: Record<string, string> = {
     'anthropic-version': req.headers['anthropic-version'] as string || '2023-06-01',
   };
+  if (req.headers['anthropic-beta']) headers['anthropic-beta'] = req.headers['anthropic-beta'] as string;
   if (apiKey) headers['x-api-key'] = apiKey as string;
   if (auth) headers['Authorization'] = auth as string;
 
@@ -193,14 +195,24 @@ app.post('/v1/chat/completions', async (req, res) => {
 
 /**
  * Handle ZhipuAI GLM API proxy (OpenCode + GLM-5)
- * Supports: /api/paas/v4/chat/completions
- * Used by OpenCode when configured with baseURL: http://127.0.0.1:4000/api/paas/v4
+ * Supports both regular and coding plan endpoints:
+ *   /api/paas/v4/chat/completions        → https://api.z.ai/api/paas/v4/chat/completions
+ *   /api/coding/paas/v4/chat/completions  → https://api.z.ai/api/coding/paas/v4/chat/completions
  */
 app.post('/api/paas/v4/chat/completions', async (req, res) => {
   const auth = req.headers['authorization'];
   if (!auth) return res.status(401).json({ error: 'Missing ZhipuAI Authorization' });
 
   await proxyRequest(req, res, 'https://api.z.ai/api/paas/v4/chat/completions', {
+    'Authorization': auth as string,
+  });
+});
+
+app.post('/api/coding/paas/v4/chat/completions', async (req, res) => {
+  const auth = req.headers['authorization'];
+  if (!auth) return res.status(401).json({ error: 'Missing ZhipuAI Authorization' });
+
+  await proxyRequest(req, res, 'https://api.z.ai/api/coding/paas/v4/chat/completions', {
     'Authorization': auth as string,
   });
 });

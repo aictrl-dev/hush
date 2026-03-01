@@ -3,8 +3,11 @@ import request from 'supertest';
 import nock from 'nock';
 import { app } from '../src/index';
 
+// Deterministic token for bulat@aictrl.dev (SHA-256 first 6 hex chars)
+const EMAIL_TOKEN = '[USER_EMAIL_f22c5a]';
+
 describe('Hush Proxy E2E Tests', () => {
-  
+
   beforeEach(() => {
     nock.cleanAll();
   });
@@ -20,11 +23,11 @@ describe('Hush Proxy E2E Tests', () => {
       const scope = nock('https://api.anthropic.com')
         .post('/v1/messages', (body) => {
           // Verify redaction happened before forwarding
-          return JSON.stringify(body).includes('[USER_EMAIL_1]');
+          return JSON.stringify(body).includes('[USER_EMAIL_');
         })
         .reply(200, {
           id: 'msg_123',
-          content: [{ type: 'text', text: 'Hello [USER_EMAIL_1]' }]
+          content: [{ type: 'text', text: `Hello ${EMAIL_TOKEN}` }]
         });
 
       const response = await request(app)
@@ -53,7 +56,7 @@ describe('Hush Proxy E2E Tests', () => {
         // 2. Mock the second streaming response
         const streamData = [
           'data: {"type": "message_start", "message": {"id": "msg_123"}}\n\n',
-          'data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Hello [USER_EMAIL_1]"}}\n\n',
+          `data: {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Hello ${EMAIL_TOKEN}"}}\n\n`,
           'data: {"type": "message_stop"}\n\n'
         ];
 
@@ -90,7 +93,7 @@ describe('Hush Proxy E2E Tests', () => {
       const scope = nock('https://api.openai.com')
         .post('/v1/chat/completions')
         .reply(200, {
-          choices: [{ message: { content: 'Rehydrated: [USER_EMAIL_1]' } }]
+          choices: [{ message: { content: `Rehydrated: ${EMAIL_TOKEN}` } }]
         });
 
       const response = await request(app)
@@ -125,12 +128,12 @@ describe('Hush Proxy E2E Tests', () => {
     it('should redact PII and proxy GLM-5 requests', async () => {
       const scope = nock('https://api.z.ai')
         .post('/api/paas/v4/chat/completions', (body) => {
-          return JSON.stringify(body).includes('[USER_EMAIL_1]');
+          return JSON.stringify(body).includes('[USER_EMAIL_');
         })
         .reply(200, {
           id: 'chatcmpl-glm5-abc123',
           model: 'glm-5',
-          choices: [{ message: { role: 'assistant', content: 'Got it, your email is [USER_EMAIL_1]' } }],
+          choices: [{ message: { role: 'assistant', content: `Got it, your email is ${EMAIL_TOKEN}` } }],
           usage: { prompt_tokens: 15, completion_tokens: 12, total_tokens: 27 }
         });
 
@@ -188,7 +191,7 @@ describe('Hush Proxy E2E Tests', () => {
 
       // 2. Mock streaming response that echoes back the token
       const streamData = [
-        'data: {"id":"chatcmpl-glm5-stream","model":"glm-5","choices":[{"delta":{"content":"Hello [USER_EMAIL_1]"}}]}\n\n',
+        `data: {"id":"chatcmpl-glm5-stream","model":"glm-5","choices":[{"delta":{"content":"Hello ${EMAIL_TOKEN}"}}]}\n\n`,
         'data: [DONE]\n\n'
       ];
 
