@@ -190,6 +190,36 @@ app.post('/v1beta/models/:modelAndAction', async (req, res) => {
   });
 });
 
+/**
+ * Catch-all Handler: Forward any other requests to Google
+ * This ensures login and metadata calls work correctly.
+ */
+app.all('*', async (req, res) => {
+  const targetBase = 'https://generativelanguage.googleapis.com';
+  const targetUrl = `${targetBase}${req.url}`;
+  
+  log.info({ path: req.path, method: req.method }, 'Forwarding unknown endpoint to Google');
+
+  try {
+    const headers: any = { ...req.headers };
+    delete headers.host;
+    delete headers.connection;
+
+    const response = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined,
+      signal: AbortSignal.timeout(30000),
+    });
+
+    const data = await response.text();
+    res.status(response.status).send(data);
+  } catch (error) {
+    log.error({ err: error, path: req.path }, 'Catch-all forwarding failed');
+    res.status(500).json({ error: 'Gateway forwarding failed' });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   const response: any = { status: 'running' };
