@@ -25,8 +25,8 @@ export class Redactor {
    * Common PII Regex patterns.
    */
   private static readonly PATTERNS = {
-    /** RFC 5322 compliant email regex */
-    EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    /** Email regex (ReDoS-safe: single character class with no nested quantifiers) */
+    EMAIL: /\b[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9.-]{1,253}\.[a-zA-Z]{2,63}\b/g,
     /** IPv4 address regex */
     IPV4: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
     /** IPv6 address regex */
