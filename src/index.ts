@@ -60,7 +60,7 @@ async function proxyRequest(
 ) {
   const startTime = performance.now();
   const dashboard = getDashboard();
-  const path = req.path || req.url || '/';
+  const path: string = req.path || req.url || '/';
   
   // 1. Redact Request Body (Prompts, Tool Results)
   const { content: redactedBody, tokens, hasRedacted } = redactor.redact(req.body);
