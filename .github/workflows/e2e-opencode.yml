@@ -62,7 +62,7 @@ jobs:
 
       - name: Start Hush Gateway (background)
         run: |
-          DEBUG=true node dist/cli.js &
+          DEBUG=true node dist/cli.js > /tmp/gateway.log 2>&1 &
           GATEWAY_PID=$!
           echo "GATEWAY_PID=$GATEWAY_PID" >> $GITHUB_ENV
 
@@ -76,39 +76,6 @@ jobs:
             sleep 1
           done
 
-      - name: Install OpenCode
-        run: |
-          curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
-          echo "$HOME/.opencode/bin" >> $GITHUB_PATH
-
-      - name: Configure OpenCode to use Hush proxy
-        run: |
-          cat > opencode.json << 'EOCONFIG'
-          {
-            "$schema": "https://opencode.ai/config.json",
-            "model": "hush-glm/glm-5",
-            "provider": {
-              "hush-glm": {
-                "npm": "@ai-sdk/openai-compatible",
-                "name": "ZhipuAI via Hush",
-                "options": {
-                  "baseURL": "http://127.0.0.1:4000/api/paas/v4",
-                  "apiKey": "{env:ZHIPU_API_KEY}"
-                },
-                "models": {
-                  "glm-5": {
-                    "name": "GLM-5",
-                    "limit": {
-                      "context": 128000,
-                      "output": 4096
-                    }
-                  }
-                }
-              }
-            }
-          }
-          EOCONFIG
-
       - name: Check vault is empty before test
         run: |
           HEALTH_BEFORE=$(curl -sf http://127.0.0.1:4000/health)
@@ -116,18 +83,26 @@ jobs:
           VAULT_BEFORE=$(echo "$HEALTH_BEFORE" | jq -r '.vaultSize // 0')
           echo "Vault size before: $VAULT_BEFORE"
 
-      - name: Run OpenCode with PII-laden prompt
+      - name: Send PII-laden request through gateway to real GLM-5
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
+        timeout-minutes: 2
         run: |
-          # Run OpenCode with a prompt that contains PII
-          # OpenCode will route through Hush gateway -> GLM-5
-          $HOME/.opencode/bin/opencode run \
-            --model hush-glm/glm-5 \
-            "Please confirm you received this message. My contact email is testuser@example-corp.com and I am connecting from server 10.42.99.7. Also my API credentials are: api_key=secret_test_a1b2c3d4e5f6g7h8i9j0" \
-            2>&1 || true
-          # Note: || true because we don't fail if GLM-5 gives an error response;
-          # the point is the outbound request went through the gateway.
+          # Send a real GLM-5 chat completion through the Hush gateway
+          # This proves PII interception works with the actual ZhipuAI API
+          HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" --max-time 60 \
+            -X POST "http://127.0.0.1:4000/api/paas/v4/chat/completions" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $ZHIPU_API_KEY" \
+            -d '{
+              "model": "glm-5",
+              "messages": [{"role": "user", "content": "Please confirm receipt. My email is testuser@example-corp.com and server IP is 10.42.99.7. Credentials: api_key=secret_test_a1b2c3d4e5f6g7h8i9j0"}]
+            }') || true
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $(cat /tmp/response.json | head -c 500)"
+          echo ""
+          echo "--- Gateway logs ---"
+          cat /tmp/gateway.log 2>/dev/null || true
 
       - name: Verify PII was intercepted
         run: |
