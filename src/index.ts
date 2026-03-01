@@ -9,11 +9,18 @@ const log = createLogger('hush-proxy');
 const redactor = new Redactor();
 const vault = new TokenVault();
 
-// Conditional Dashboard integration
-let dashboard: Dashboard | null = null;
-if (process.env.HUSH_DASHBOARD === 'true') {
-  dashboard = new Dashboard();
+// Lazy-initialize dashboard to ensure it captures flags set by CLI or ENV
+let _dashboard: Dashboard | null = null;
+function getDashboard(): Dashboard | null {
+  if (_dashboard) return _dashboard;
+  if (process.env.HUSH_DASHBOARD === 'true' || process.argv.includes('--dashboard')) {
+    _dashboard = new Dashboard();
+  }
+  return _dashboard;
 }
+
+// Force immediate initialization if dashboard flag is present
+getDashboard();
 
 export const app = express();
 
@@ -54,19 +61,23 @@ async function proxyRequest(
   headers: Record<string, string>
 ) {
   const startTime = performance.now();
-  if (dashboard) dashboard.logRequest(req.path);
-
+  const dashboard = getDashboard();
+  
   // 1. Redact Request Body (Prompts, Tool Results)
   const { content: redactedBody, tokens, hasRedacted } = redactor.redact(req.body);
   const redactionDuration = Math.round(performance.now() - startTime);
+
+  // Log all requests to dashboard
+  if (dashboard) {
+    dashboard.logRequest(req.path, redactionDuration);
+  }
 
   if (hasRedacted) {
     log.info({ path: req.path, tokenCount: tokens.size, duration: redactionDuration }, 'Redacted sensitive data from request');
     vault.saveTokens(tokens);
     
-    // Log to Live Dashboard with performance data
+    // Log redaction events
     if (dashboard) {
-      dashboard.logRequest(req.path, redactionDuration);
       tokens.forEach((value, token) => {
         const type = token.split('_')[1]; // Extract type from [HUSH_TYPE_ID]
         dashboard!.logRedaction(type, token);
