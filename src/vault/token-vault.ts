@@ -86,61 +86,33 @@ export class TokenVault {
    */
   public createStreamingRehydrator() {
     let buffer = '';
-    // Security: Any token starts with [HUSH_ and ends with ]
-    const TOKEN_START = '[HUSH_';
-    const TOKEN_END = ']';
 
     return (chunk: string): string => {
       buffer += chunk;
-      
-      let result = '';
-      let i = 0;
-      
-      while (i < buffer.length) {
-        const startIdx = buffer.indexOf(TOKEN_START, i);
-        
-        if (startIdx === -1) {
-          // No more tokens starting in the buffer. 
-          // We can safely release everything up to the last potential partial token start.
-          const lastPotentialStart = buffer.lastIndexOf('[', buffer.length - 1);
-          if (lastPotentialStart > i) {
-            result += buffer.substring(i, lastPotentialStart);
-            buffer = buffer.substring(lastPotentialStart);
-          } else {
-            result += buffer.substring(i);
-            buffer = '';
+
+      // Check if any vault token could be split across chunks (partial match at end)
+      let holdBack = 0;
+      for (const [token] of this.vault.entries()) {
+        // Check if the end of the buffer is a prefix of any token
+        for (let prefixLen = 1; prefixLen < token.length; prefixLen++) {
+          const prefix = token.substring(0, prefixLen);
+          if (buffer.endsWith(prefix)) {
+            holdBack = Math.max(holdBack, prefixLen);
           }
-          break;
-        }
-
-        // We found a token start. Release everything before it.
-        result += buffer.substring(i, startIdx);
-        
-        const endIdx = buffer.indexOf(TOKEN_END, startIdx);
-        if (endIdx === -1) {
-          // Token is incomplete. Keep it in the buffer and stop.
-          buffer = buffer.substring(startIdx);
-          break;
-        }
-
-        // We have a full token!
-        const fullToken = buffer.substring(startIdx, endIdx + 1);
-        const originalValue = this.get(fullToken);
-        
-        if (originalValue) {
-          result += originalValue;
-        } else {
-          result += fullToken; // Token not in vault, keep as is
-        }
-        
-        i = endIdx + 1;
-        if (i >= buffer.length) {
-          buffer = '';
-          break;
         }
       }
-      
-      return result;
+
+      // Split buffer into releasable text and held-back portion
+      const releaseEnd = buffer.length - holdBack;
+      let text = buffer.substring(0, releaseEnd);
+      buffer = buffer.substring(releaseEnd);
+
+      // Replace all vault tokens in the releasable text
+      for (const [token, entry] of this.vault.entries()) {
+        text = text.split(token).join(entry.value);
+      }
+
+      return text;
     };
   }
 

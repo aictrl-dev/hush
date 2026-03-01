@@ -13,6 +13,7 @@
     "start": "node dist/cli.js",
     "dev": "tsx src/cli.ts",
     "test": "vitest run --coverage",
+    "test:e2e": "./scripts/e2e-opencode.sh",
     "test:watch": "vitest",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""

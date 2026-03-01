@@ -1,0 +1,136 @@
+name: E2E - OpenCode + GLM-5 via Hush Gateway
+
+on:
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      use_real_api:
+        description: 'Use real ZhipuAI API key (requires ZHIPUAI_API_KEY secret)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: e2e-opencode-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-gateway-interception:
+    name: Gateway PII Interception (Mock Upstream)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run E2E interception test
+        run: |
+          chmod +x scripts/e2e-opencode.sh
+          ./scripts/e2e-opencode.sh
+        env:
+          CI: true
+
+  e2e-opencode-live:
+    name: OpenCode + GLM-5 Live E2E
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.use_real_api == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: 'npm'
+
+      - name: Install dependencies & build
+        run: npm ci && npm run build
+
+      - name: Start Hush Gateway (background)
+        run: |
+          DEBUG=true node dist/cli.js &
+          GATEWAY_PID=$!
+          echo "GATEWAY_PID=$GATEWAY_PID" >> $GITHUB_ENV
+
+          # Wait for gateway to be ready
+          for i in {1..15}; do
+            if curl -sf http://127.0.0.1:4000/health > /dev/null 2>&1; then
+              echo "Gateway is ready"
+              break
+            fi
+            echo "Waiting for gateway... ($i/15)"
+            sleep 1
+          done
+
+      - name: Install OpenCode
+        run: |
+          curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
+          echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+
+      - name: Configure OpenCode to use Hush proxy
+        run: |
+          cat > opencode.json << 'EOCONFIG'
+          {
+            "$schema": "https://opencode.ai/config.json",
+            "model": "zai-coding-plan/glm-5",
+            "provider": {
+              "zai-coding-plan": {
+                "options": {
+                  "baseURL": "http://127.0.0.1:4000/api/paas/v4"
+                }
+              }
+            }
+          }
+          EOCONFIG
+
+      - name: Check vault is empty before test
+        run: |
+          HEALTH_BEFORE=$(curl -sf http://127.0.0.1:4000/health)
+          echo "Health before: $HEALTH_BEFORE"
+          VAULT_BEFORE=$(echo "$HEALTH_BEFORE" | jq -r '.vaultSize // 0')
+          echo "Vault size before: $VAULT_BEFORE"
+
+      - name: Run OpenCode with PII-laden prompt
+        env:
+          ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
+        run: |
+          # Run OpenCode with a prompt that contains PII
+          # OpenCode will route through Hush gateway -> GLM-5
+          $HOME/.opencode/bin/opencode run \
+            --model zai-coding-plan/glm-5 \
+            "Please confirm you received this message. My contact email is testuser@example-corp.com and I am connecting from server 10.42.99.7. Also my API credentials are: api_key=secret_test_a1b2c3d4e5f6g7h8i9j0" \
+            2>&1 || true
+          # Note: || true because we don't fail if GLM-5 gives an error response;
+          # the point is the outbound request went through the gateway.
+
+      - name: Verify PII was intercepted
+        run: |
+          HEALTH_AFTER=$(curl -sf http://127.0.0.1:4000/health)
+          echo "Health after: $HEALTH_AFTER"
+          VAULT_AFTER=$(echo "$HEALTH_AFTER" | jq -r '.vaultSize // 0')
+          echo "Vault size after: $VAULT_AFTER"
+
+          if [ "$VAULT_AFTER" -gt 0 ]; then
+            echo "SUCCESS: Gateway vault contains $VAULT_AFTER token(s) - PII was intercepted!"
+          else
+            echo "FAILURE: Gateway vault is empty - PII may not have been intercepted"
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          if [ -n "$GATEWAY_PID" ]; then
+            kill $GATEWAY_PID 2>/dev/null || true
+          fi

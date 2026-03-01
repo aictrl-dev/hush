@@ -164,4 +164,17 @@ export class Dashboard {
   private render() {
     this.screen.render();
   }
+
+  /**
+   * Get current dashboard statistics (for testing and programmatic access).
+   */
+  public getStats() {
+    return {
+      redactedCount: this.stats.redactedCount,
+      requestCount: this.stats.requestCount,
+      leaks: this.stats.leaks,
+      types: new Map(this.stats.types),
+      latency: [...this.stats.latency],
+    };
+  }
 }
