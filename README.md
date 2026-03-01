@@ -3,131 +3,160 @@
 </p>
 
 **hush** is a Semantic Security Gateway for AI agents.
- It acts as a local proxy between your AI tools (like Claude Code, Cursor, or custom CLI agents) and LLM providers (Anthropic, OpenAI).
+It acts as a local proxy between your AI tools (Claude Code, Codex, OpenCode, Gemini CLI) and LLM providers (Anthropic, OpenAI, ZhipuAI, Google).
 
-Hush ensures that sensitive data—like emails, IP addresses, and secrets—never leaves your machine by redacting it from prompts and tool outputs before they hit the cloud.
-
-## Why Hush?
-
-When an AI agent runs a local tool (like `snow` or `ls`), it often returns PII (Personally Identifiable Information) to the terminal. Without Hush, this sensitive data is sent directly to the LLM provider for processing.
-
-Hush intercepts this traffic, replaces PII with persistent tokens, and stores the original values in a local `TokenVault`.
-
-## Features
-
-- **Semantic Redaction:** Automatically identifies and masks PII (emails, IPs, secrets, credit cards) using deterministic hash-based tokens (e.g., `[USER_EMAIL_f22c5a]`).
-- **Local Rehydration:** Automatically restores original values in the LLM's response locally. You see the real data; the cloud provider only sees tokens.
-- **Live Protection Dashboard:** Run with `--dashboard` to see a real-time TUI showing PII being blocked and intercepted.
-- **Zero-Trust Architecture:** Local-only processing. PII never leaves your machine. Bindings default to `127.0.0.1`.
-- **Streaming Support:** Robust rehydration for SSE (Server-Sent Events) even when tokens are split across network chunks.
-
-## Getting Started
-
-### Installation
-
-```bash
-npm install -g @aictrl/hush
-```
-
-### Usage
-
-1.  **Start the hush Gateway:**
-    ```bash
-    hush --dashboard
-    ```
-    hush will start listening on `http://127.0.0.1:4000`.
-
-2.  **Point your AI tool to the Gateway:**
-
-    For **Claude Code**:
-    ```bash
-    export ANTHROPIC_BASE_URL=http://127.0.0.1:4000
-    claude
-    ```
-
-    For **OpenAI-based tools** (Codex, etc.):
-    ```bash
-    export OPENAI_BASE_URL=http://127.0.0.1:4000/v1
-    ```
-
-    For **Google Gemini CLI**:
-    ```bash
-    export CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
-    ```
-
-    For **ZhipuAI / OpenCode** (GLM-5):
-    ```bash
-    # Create opencode.json in your project root:
-    {
-      "provider": {
-        "zai-coding-plan": {
-          "options": {
-            "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
-          }
-        }
-      }
-    }
-    ```
+Hush ensures that sensitive data — emails, IP addresses, API keys, credit cards — never leaves your machine by redacting it from prompts and tool outputs before they hit the cloud.
 
 ## Supported Tools
 
-| Tool | Env Variable / Config | Route |
-|------|----------------------|-------|
-| Claude Code | `ANTHROPIC_BASE_URL` | `/v1/messages` → Anthropic |
-| Codex / OpenAI | `OPENAI_BASE_URL` | `/v1/chat/completions` → OpenAI |
-| OpenCode (GLM-5) | `opencode.json` | `/api/paas/v4/**` → ZhipuAI |
-| Gemini CLI | `CODE_ASSIST_ENDPOINT` | `/v1beta/models/**` → Google |
+| Tool | Provider | Auth | Route |
+|------|----------|------|-------|
+| Claude Code | Anthropic | API key (`x-api-key`) | `/v1/messages` |
+| Codex | OpenAI | Bearer token | `/v1/chat/completions` |
+| OpenCode | ZhipuAI (GLM-5) | Bearer token | `/api/paas/v4/**`, `/api/coding/paas/v4/**` |
+| Gemini CLI | Google | API key (`x-goog-api-key`) | `/v1beta/models/**` |
+| Any tool | Auto-detect | Passthrough | `/*` (catch-all) |
 
-> **Note on Claude Code auth:** Claude Code subscription tokens use OAuth which Anthropic currently blocks for third-party proxies. Use an Anthropic API key instead: `ANTHROPIC_AUTH_TOKEN=sk-ant-... ANTHROPIC_BASE_URL=http://127.0.0.1:4000 claude`
+## Quick Start (Dev Machine)
 
-## Configuration
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | The port the gateway listens on. | `4000` |
-| `HUSH_HOST` | The host interface to bind to. | `127.0.0.1` |
-| `HUSH_AUTH_TOKEN` | If set, the proxy requires `Authorization: Bearer <token>` | `undefined` |
-| `HUSH_DASHBOARD` | Set to `true` to enable the TUI dashboard. | `false` |
-
-## How it Works
-
-1.  **Intercept:** Hush sits locally on your machine as an HTTP proxy.
-2.  **Redact:** Before a request is forwarded to the LLM provider, Hush scans the message content for sensitive data and swaps it for deterministic hash-based tokens (e.g., `[USER_EMAIL_f22c5a]`).
-3.  **Vault:** The original data is saved in a local, in-memory `TokenVault`.
-4.  **Forward:** The redacted request is sent to the LLM provider.
-5.  **Rehydrate:** When the LLM responds, Hush re-inserts the original values from the vault before showing the response to you.
-
-## Development
-
-### Prerequisites
-
-- Node.js 18+
-- npm
-
-### Setup
+### 1. Clone and build
 
 ```bash
 git clone https://github.com/aictrl-dev/hush.git
 cd hush
 npm install
-```
-
-### Testing
-
-```bash
-npm test
-```
-
-### Building
-
-```bash
 npm run build
 ```
 
-## Contributing
+### 2. Start the gateway
 
-We welcome contributions! Please see our [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+```bash
+# Terminal 1 — start hush on port 4000 (default)
+npm start
+
+# Or with the live dashboard:
+npm start -- --dashboard
+
+# Or pick a custom port:
+PORT=3005 npm start
+```
+
+You should see:
+```
+Hush Semantic Gateway is listening on http://localhost:4000
+Routes: /v1/messages → Anthropic, /v1/chat/completions → OpenAI, /api/paas/v4/** → ZhipuAI, * → Google
+```
+
+### 3. Point your AI tool at the gateway
+
+Open a **new terminal** for each tool. The gateway handles all providers simultaneously — no restart needed.
+
+#### Claude Code (Anthropic API key)
+
+```bash
+# Terminal 2
+ANTHROPIC_AUTH_TOKEN=sk-ant-api03-YOUR-KEY \
+ANTHROPIC_BASE_URL=http://127.0.0.1:4000 \
+claude
+```
+
+> **Note:** Claude Code subscription (OAuth) tokens are currently blocked by Anthropic for third-party proxies. You must use an Anthropic API key. Set `ANTHROPIC_AUTH_TOKEN` (not `ANTHROPIC_API_KEY`) — this tells Claude Code to send it as the `Authorization` header which the gateway forwards.
+
+#### Codex (OpenAI)
+
+```bash
+# Terminal 3
+OPENAI_API_KEY=sk-YOUR-KEY \
+OPENAI_BASE_URL=http://127.0.0.1:4000/v1 \
+codex
+```
+
+#### OpenCode (ZhipuAI GLM-5)
+
+Create `opencode.json` in your **project root** (the folder where you run `opencode`):
+
+```json
+{
+  "provider": {
+    "zai-coding-plan": {
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+      }
+    }
+  }
+}
+```
+
+Then run OpenCode normally — it picks up the config automatically:
+
+```bash
+# Terminal 4
+cd /path/to/your/project
+opencode
+```
+
+#### Gemini CLI
+
+```bash
+# Terminal 5
+GOOGLE_API_KEY=YOUR-KEY \
+CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000 \
+gemini
+```
+
+### 4. Verify it works
+
+Watch the gateway terminal (Terminal 1). When your AI tool sends a request containing PII, you'll see:
+
+```
+INFO: Redacted sensitive data from request  path="/v1/messages"  tokenCount=2  duration=1
+```
+
+The AI tool still sees the original data in responses (rehydrated locally). The LLM provider only ever sees tokens like `[USER_EMAIL_f22c5a]`.
+
+## Features
+
+- **Semantic Redaction:** Identifies and masks PII (emails, IPs, secrets, credit cards, phone numbers) using deterministic hash-based tokens (e.g., `[USER_EMAIL_f22c5a]`). Same input always produces the same token.
+- **Local Rehydration:** Restores original values in the LLM's response locally. You see the real data; the cloud provider only sees tokens.
+- **Streaming Support:** SSE-aware rehydration handles tokens split character-by-character across separate JSON events (tested with ZhipuAI GLM-5).
+- **Live Dashboard:** Run with `--dashboard` for a real-time TUI showing PII being blocked.
+- **Zero-Trust:** Local-only processing. PII never leaves your machine. Binds to `127.0.0.1` by default.
+- **Universal Proxy:** One gateway instance handles all providers. Route auto-detection from request path — no configuration needed.
+
+## How it Works
+
+1. **Intercept:** Hush sits on your machine as an HTTP proxy between your AI tool and the LLM provider.
+2. **Redact:** Before forwarding, Hush scans the request for PII and swaps matches for deterministic tokens (e.g., `bulat@aictrl.dev` → `[USER_EMAIL_f22c5a]`).
+3. **Vault:** Original values are saved in a local, in-memory `TokenVault` (auto-expires after 1 hour).
+4. **Forward:** The redacted request is sent to the LLM provider. The provider never sees your real data.
+5. **Rehydrate:** When the response comes back, Hush replaces tokens with original values before returning to your tool.
+
+## Configuration
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Gateway listen port | `4000` |
+| `HUSH_HOST` | Bind address | `127.0.0.1` |
+| `HUSH_AUTH_TOKEN` | If set, requires `Authorization: Bearer <token>` or `x-hush-token` header on all requests | — |
+| `HUSH_DASHBOARD` | Enable TUI dashboard | `false` |
+| `DEBUG` | Show vault size in `/health` response | `false` |
+
+## Development
+
+```bash
+# Run in dev mode (auto-recompile with tsx)
+npm run dev
+
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Build
+npm run build
+```
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+Apache License 2.0 — see [LICENSE](LICENSE).
