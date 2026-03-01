@@ -1,6 +1,7 @@
 import pino from 'pino';
 
 const isProduction = process.env.NODE_ENV === 'production';
+const isDashboard = process.env.HUSH_DASHBOARD === 'true' || process.argv.includes('--dashboard');
 
 /**
  * Pino level → Google Cloud Logging severity mapping.
@@ -52,12 +53,11 @@ export const logger = pino({
     ],
     censor: '[REDACTED]',
   },
-  transport: isProduction
-    ? undefined
-    : {
-        target: 'pino-pretty',
-        options: { colorize: true },
-      },
+  // Security: In dashboard mode, we MUST avoid stdout/stderr to prevent TUI corruption.
+  // We use standard pino-pretty for dev, and no transport for prod.
+  transport: isDashboard 
+    ? { target: 'pino/file', options: { destination: 'hush.log', mkdir: true } }
+    : (isProduction ? undefined : { target: 'pino-pretty', options: { colorize: true } }),
 });
 
 /**
