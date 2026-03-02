@@ -105,7 +105,7 @@ async function proxyRequest(
       method: req.method,
       headers: fetchHeaders,
       body: hasBody ? JSON.stringify(redactedBody) : undefined,
-      signal: AbortSignal.timeout(30000), // 30s timeout
+      signal: AbortSignal.timeout(120000), // 120s timeout for long LLM responses
     });
 
     // Handle Upstream Errors (4xx, 5xx)
@@ -159,7 +159,12 @@ async function proxyRequest(
 
   } catch (error) {
     log.error({ err: error, path: req.path }, 'Failed to forward request');
-    res.status(502).json({ error: 'Gateway forwarding failed' });
+    if (!res.headersSent) {
+      res.status(502).json({ error: 'Gateway forwarding failed' });
+    } else {
+      // Headers already sent (streaming in progress) — just end the response
+      res.end();
+    }
   }
 }
 
