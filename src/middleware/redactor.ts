@@ -47,6 +47,56 @@ export class Redactor {
   };
 
   /**
+   * Cloud provider key patterns — Tier 1 only (unique prefixes, very low false-positive risk).
+   * Sources: GitHub secret scanning, gitleaks, trufflehog.
+   */
+  private static readonly CLOUD_KEY_PATTERNS: Array<{ re: RegExp; label: string }> = [
+    // AWS
+    { re: /\b((?:AKIA|ASIA|ABIA|ACCA)[A-Z2-7]{16})\b/g, label: 'AWS_KEY' },
+    // GCP / Firebase
+    { re: /\b(AIza[\w-]{35})\b/g, label: 'GCP_KEY' },
+    { re: /\b(GOCSPX-[a-zA-Z0-9_-]{28})\b/g, label: 'GCP_OAUTH' },
+    // GitHub
+    { re: /\b(ghp_[0-9a-zA-Z]{36})\b/g, label: 'GITHUB_PAT' },
+    { re: /\b(gho_[0-9a-zA-Z]{36})\b/g, label: 'GITHUB_OAUTH' },
+    { re: /\b(ghu_[0-9a-zA-Z]{36})\b/g, label: 'GITHUB_U2S' },
+    { re: /\b(ghs_[0-9a-zA-Z]{36})\b/g, label: 'GITHUB_S2S' },
+    { re: /\b(ghr_[0-9a-zA-Z]{36})\b/g, label: 'GITHUB_REFRESH' },
+    { re: /\b(github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})\b/g, label: 'GITHUB_FINE_PAT' },
+    // GitLab
+    { re: /\b(glpat-[\w-]{20})\b/g, label: 'GITLAB_PAT' },
+    { re: /\b(glptt-[a-zA-Z0-9_-]{40})\b/g, label: 'GITLAB_TRIGGER' },
+    // Slack
+    { re: /\b(xoxb-[0-9]{10,13}-[0-9]{10,13}[a-zA-Z0-9-]*)\b/g, label: 'SLACK_BOT' },
+    { re: /\b(xox[pe]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9-]+)\b/g, label: 'SLACK_TOKEN' },
+    // Stripe
+    { re: /\b(sk_(?:live|test)_[a-zA-Z0-9]{10,99})\b/g, label: 'STRIPE_SECRET' },
+    { re: /\b(rk_(?:live|test)_[a-zA-Z0-9]{10,99})\b/g, label: 'STRIPE_RESTRICTED' },
+    { re: /\b(whsec_[a-zA-Z0-9]{24,})\b/g, label: 'STRIPE_WEBHOOK' },
+    // SendGrid (SG. + base64url with internal dot separator)
+    { re: /\b(SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43})\b/g, label: 'SENDGRID_KEY' },
+    // npm
+    { re: /\b(npm_[a-z0-9]{36})\b/gi, label: 'NPM_TOKEN' },
+    // PyPI
+    { re: /\b(pypi-AgEIcHlwaS5vcmc[\w-]{50,})\b/g, label: 'PYPI_TOKEN' },
+    // Docker Hub
+    { re: /\b(dckr_pat_[a-zA-Z0-9_-]{27,})\b/g, label: 'DOCKER_PAT' },
+    // Anthropic
+    { re: /\b(sk-ant-[a-zA-Z0-9_-]{36,})\b/g, label: 'ANTHROPIC_KEY' },
+    // OpenAI (with T3BlbkFJ marker)
+    { re: /\b(sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}T3BlbkFJ[A-Za-z0-9_-]{20,})\b/g, label: 'OPENAI_KEY' },
+    // DigitalOcean
+    { re: /\b(do[por]_v1_[a-f0-9]{64})\b/g, label: 'DIGITALOCEAN_TOKEN' },
+    // HashiCorp Vault
+    { re: /\b(hvs\.[\w-]{90,})\b/g, label: 'VAULT_TOKEN' },
+    { re: /\b(hvb\.[\w-]{90,})\b/g, label: 'VAULT_BATCH' },
+    // Supabase
+    { re: /\b(sbp_[a-f0-9]{40})\b/g, label: 'SUPABASE_PAT' },
+    { re: /\b(sb_secret_[a-zA-Z0-9_-]{20,})\b/g, label: 'SUPABASE_SECRET' },
+    // PEM private keys (multiline — matched separately in redactPEMKeys)
+  ];
+
+  /**
    * Redact sensitive information from a JSON object or string.
    * 
    * @param input - The string or object to redact.
@@ -101,6 +151,31 @@ export class Redactor {
           tokens.set(token, match);
           return token;
         });
+
+        // Redact cloud provider keys BEFORE generic patterns — specific prefixed
+        // keys must be matched first so they don't get partially eaten by SECRET
+        // or CREDIT_CARD patterns.
+        for (const { re, label } of Redactor.CLOUD_KEY_PATTERNS) {
+          re.lastIndex = 0;
+          text = text.replace(re, (match, p1: string) => {
+            hasRedacted = true;
+            const val = p1 || match;
+            const token = `[${label}_${tokenHash(val)}]`;
+            tokens.set(token, val);
+            return token;
+          });
+        }
+
+        // Redact PEM private keys
+        text = text.replace(
+          /-----BEGIN[ A-Z0-9_-]{0,100}PRIVATE KEY-----[\s\S]{64,}?-----END[ A-Z0-9_-]{0,100}PRIVATE KEY-----/g,
+          (match) => {
+            hasRedacted = true;
+            const token = `[PRIVATE_KEY_${tokenHash(match)}]`;
+            tokens.set(token, match);
+            return token;
+          },
+        );
 
         // Redact Secrets in text (e.g. "api_key=...")
         text = text.replace(Redactor.PATTERNS.SECRET, (match, p1) => {
