@@ -207,7 +207,7 @@ import { HushPlugin } from '@aictrl/hush/opencode-plugin'
 
 | Tool | Blocked when |
 |------|-------------|
-| `read` | File path matches `.env*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`, `id_rsa*`, `.netrc`, `.pgpass` |
+| `read` | File path matches `.env*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `*.asc`, `id_rsa*`, `.netrc`, `.pgpass` |
 | `bash` | Commands like `cat`, `head`, `tail`, `less`, `more`, `bat` target a sensitive file |
 
 ### Plugin + Proxy = Defense-in-depth

@@ -19,6 +19,11 @@ describe('isSensitivePath', () => {
     'id_rsa.pub',
     '.netrc',
     '.pgpass',
+    'keystore.p12',
+    'cert.pfx',
+    'truststore.jks',
+    'app.keystore',
+    'private.asc',
   ])('blocks %s', (path) => {
     expect(isSensitivePath(path)).toBe(true);
   });
