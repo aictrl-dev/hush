@@ -1,0 +1,40 @@
+stages:
+  - build
+  - e2e
+
+build:
+  stage: build
+  image: node:22-slim
+  script:
+    - npm ci
+    - npm run build
+    - npm test
+  artifacts:
+    paths:
+      - dist/
+      - node_modules/
+    expire_in: 1 hour
+
+e2e-plugin-blocks-env:
+  stage: e2e
+  image: node:22-slim
+  needs: [build]
+  before_script:
+    - npm install -g opencode
+  script:
+    - chmod +x scripts/e2e-plugin-block.sh
+    - ./scripts/e2e-plugin-block.sh
+  variables:
+    ZHIPUAI_API_KEY: $ZHIPUAI_API_KEY
+
+e2e-proxy-redacts-pii:
+  stage: e2e
+  image: node:22-slim
+  needs: [build]
+  before_script:
+    - npm install -g opencode
+  script:
+    - chmod +x scripts/e2e-proxy-live.sh
+    - ./scripts/e2e-proxy-live.sh
+  variables:
+    ZHIPUAI_API_KEY: $ZHIPUAI_API_KEY

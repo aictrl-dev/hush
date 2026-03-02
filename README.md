@@ -168,6 +168,58 @@ When a tool runs (e.g., `cat .env`), the hook inspects the response for PII. If 
 
 For maximum protection, use both modes together. The team config example in [`examples/team-config/`](examples/team-config/) shows this setup — hooks redact tool outputs and the proxy redacts API requests.
 
+## OpenCode Plugin
+
+Hush provides an **OpenCode plugin** that blocks reads of sensitive files (`.env`, `*.pem`, `credentials.*`, `id_rsa`, etc.) before the tool executes — the AI model never sees the contents.
+
+### Drop-in setup
+
+Copy the plugin file and update your `opencode.json`:
+
+```
+your-project/
+├── .opencode/plugins/hush.ts    # plugin file
+└── opencode.json                # add "plugin" array
+```
+
+```json
+{
+  "provider": {
+    "zai-coding-plan": {
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+      }
+    }
+  },
+  "plugin": [".opencode/plugins/hush.ts"]
+}
+```
+
+Find the drop-in plugin at [`examples/team-config/.opencode/plugins/hush.ts`](examples/team-config/.opencode/plugins/hush.ts).
+
+### npm import
+
+```typescript
+import { HushPlugin } from '@aictrl/hush/opencode-plugin'
+```
+
+### What it blocks
+
+| Tool | Blocked when |
+|------|-------------|
+| `read` | File path matches `.env*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`, `id_rsa*`, `.netrc`, `.pgpass` |
+| `bash` | Commands like `cat`, `head`, `tail`, `less`, `more`, `bat` target a sensitive file |
+
+### Plugin + Proxy = Defense-in-depth
+
+The plugin blocks reads of known-sensitive filenames. The proxy catches PII in files with normal names (e.g., `config.txt` containing an email). Together they provide two layers of protection:
+
+```
+Tool reads .env       → [Plugin: BLOCKED]           → model never sees it
+Tool reads config.txt → [Plugin: allowed]            → proxy redacts PII → model sees tokens
+                         (not a sensitive filename)
+```
+
 ## How it Works
 
 1. **Intercept** — Hush sits on your machine between your AI tool and the LLM provider.
