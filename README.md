@@ -73,6 +73,57 @@ INFO: Redacted sensitive data from request  path="/v1/messages"  tokenCount=2  d
 
 Your tool still sees the real data (rehydrated locally). The LLM provider only ever sees tokens like `[USER_EMAIL_f22c5a]`.
 
+## Enforce for Your Team
+
+Commit config files to your repo so every developer automatically routes through hush — no manual setup per person.
+
+Copy the files from [`examples/team-config/`](examples/team-config/) into your project root:
+
+```
+your-project/
+├── .claude/settings.json     # Claude Code → hush
+├── .codex/config.toml        # Codex → hush
+├── opencode.json             # OpenCode → hush
+└── .env                      # Gemini CLI → hush (add CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000)
+```
+
+**Claude Code** — `.claude/settings.json`:
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000"
+  }
+}
+```
+
+**Codex** — `.codex/config.toml`:
+```toml
+model_provider = "hush"
+
+[model_providers.hush]
+base_url = "http://127.0.0.1:4000/v1"
+```
+
+**OpenCode** — `opencode.json`:
+```json
+{
+  "provider": {
+    "zai-coding-plan": {
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+      }
+    }
+  }
+}
+```
+
+**Gemini CLI** — add to your `.env`:
+```
+CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
+```
+
+Each developer just needs `hush` running locally. All AI tools in the project will route through it automatically.
+
 ## How it Works
 
 1. **Intercept** — Hush sits on your machine between your AI tool and the LLM provider.
