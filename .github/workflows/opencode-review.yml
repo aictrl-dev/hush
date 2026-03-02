@@ -134,7 +134,7 @@ jobs:
           **CRITICAL**: Include the string 'Reviewed SHA: $SHA' at the very end of your comment so I can track which commits have been reviewed."
 
       - name: Verify Hush Proxy Was Used
-        if: steps.check_changes.outputs.skip != 'true'
+        if: always() && steps.check_changes.outputs.skip != 'true'
         run: |
           echo "=== Hush Gateway Logs ==="
           cat /tmp/hush-gateway.log 2>/dev/null || echo "No gateway log found"
