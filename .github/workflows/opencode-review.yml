@@ -121,11 +121,11 @@ jobs:
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
           PR_NUMBER=${{ github.event.pull_request.number }}
-          echo "Starting review with hush-zhipu/glm-4.7-flash for PR #$PR_NUMBER SHA $SHA..."
+          echo "Starting review with hush-zhipu/glm-5 for PR #$PR_NUMBER SHA $SHA..."
           echo "opencode.json:"; cat opencode.json
           echo "Hush health:"; curl -sf http://127.0.0.1:4000/health || echo "gateway unreachable"
 
-          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-4.7-flash "Review the changes in PR #$PR_NUMBER for the Hush Semantic Gateway.
+          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-5 "Review the changes in PR #$PR_NUMBER for the Hush Semantic Gateway.
 
           **IMPORTANT**: This is a code review only. Do NOT run tests, npm commands, or build commands. Only read source files and git diffs.
 
