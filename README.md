@@ -153,7 +153,7 @@ Local files/commands → [Hook: redact before Claude sees] → Claude's context
                                                           LLM Provider
 ```
 
-When a tool runs (e.g., `cat .env`), the hook intercepts the output, scans for PII, and replaces it with tokens before Claude processes it. Claude only ever sees `[USER_EMAIL_f22c5a]`, not `alice@company.com`.
+When a tool runs (e.g., `cat .env`), the hook inspects the response for PII. If PII is found, the hook **blocks** the raw output and provides Claude with the redacted version instead. Claude only ever sees `[USER_EMAIL_f22c5a]`, not `alice@company.com`.
 
 ### Hooks vs Proxy
 

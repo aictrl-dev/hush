@@ -1,11 +1,11 @@
 /**
  * hush redact-hook — Claude Code PostToolUse hook handler
  *
- * Reads the hook payload from stdin, redacts PII from tool output,
- * and prints a hookSpecificOutput override if anything was redacted.
+ * Reads the hook payload from stdin, redacts PII from the tool response,
+ * and blocks the output (replacing it with redacted text) if PII was found.
  *
  * Exit codes:
- *   0 — success (output may or may not contain override)
+ *   0 — success (may or may not block)
  *   2 — malformed input (blocks the tool call per hooks spec)
  */
 
@@ -14,53 +14,56 @@ import { Redactor } from '../middleware/redactor.js';
 interface HookPayload {
   tool_name?: string;
   tool_input?: Record<string, unknown>;
-  tool_output?: {
+  tool_response?: {
     // Bash tool
     stdout?: string;
     stderr?: string;
-    // Read / Grep / WebFetch tools
+    // Read tool (nested under file)
+    file?: { content?: string; [key: string]: unknown };
+    // Grep / WebFetch / generic
     content?: string;
-    // Generic fallback
     output?: string;
     [key: string]: unknown;
   };
 }
 
 interface HookResponse {
-  hookSpecificOutput: {
-    hookEventName: 'PostToolUse';
-    outputOverride: string;
-  };
+  decision: 'block';
+  reason: string;
 }
 
-/** Collect all text from a tool_output object. */
-function extractText(toolOutput: HookPayload['tool_output']): string | null {
-  if (!toolOutput || typeof toolOutput !== 'object') return null;
+/** Collect all text from a tool_response object. */
+function extractText(toolResponse: HookPayload['tool_response']): string | null {
+  if (!toolResponse || typeof toolResponse !== 'object') return null;
 
   const parts: string[] = [];
 
-  if (typeof toolOutput.stdout === 'string' && toolOutput.stdout) {
-    parts.push(toolOutput.stdout);
+  if (typeof toolResponse.stdout === 'string' && toolResponse.stdout) {
+    parts.push(toolResponse.stdout);
   }
-  if (typeof toolOutput.stderr === 'string' && toolOutput.stderr) {
-    parts.push(toolOutput.stderr);
+  if (typeof toolResponse.stderr === 'string' && toolResponse.stderr) {
+    parts.push(toolResponse.stderr);
   }
-  if (typeof toolOutput.content === 'string' && toolOutput.content) {
-    parts.push(toolOutput.content);
+  // Read tool nests content under file.content
+  if (toolResponse.file && typeof toolResponse.file.content === 'string' && toolResponse.file.content) {
+    parts.push(toolResponse.file.content);
   }
-  if (typeof toolOutput.output === 'string' && toolOutput.output) {
-    parts.push(toolOutput.output);
+  if (typeof toolResponse.content === 'string' && toolResponse.content) {
+    parts.push(toolResponse.content);
+  }
+  if (typeof toolResponse.output === 'string' && toolResponse.output) {
+    parts.push(toolResponse.output);
   }
 
   return parts.length > 0 ? parts.join('\n') : null;
 }
 
-/** Build the redacted tool_output, preserving the original shape. */
-function redactToolOutput(
-  toolOutput: NonNullable<HookPayload['tool_output']>,
+/** Redact PII from the tool response text. */
+function redactToolResponse(
+  toolResponse: NonNullable<HookPayload['tool_response']>,
   redactor: Redactor,
 ): { text: string; hasRedacted: boolean } {
-  const text = extractText(toolOutput);
+  const text = extractText(toolResponse);
   if (!text) return { text: '', hasRedacted: false };
 
   const { content, hasRedacted } = redactor.redact(text);
@@ -98,13 +101,13 @@ export async function run(): Promise<void> {
     process.exit(2);
   }
 
-  if (!payload.tool_output) {
-    // No tool_output to redact
+  if (!payload.tool_response) {
+    // No tool_response to redact
     process.exit(0);
   }
 
   const redactor = new Redactor();
-  const { text, hasRedacted } = redactToolOutput(payload.tool_output, redactor);
+  const { text, hasRedacted } = redactToolResponse(payload.tool_response, redactor);
 
   if (!hasRedacted) {
     // No PII found — let Claude Code keep the original output
@@ -112,10 +115,8 @@ export async function run(): Promise<void> {
   }
 
   const response: HookResponse = {
-    hookSpecificOutput: {
-      hookEventName: 'PostToolUse',
-      outputOverride: text,
-    },
+    decision: 'block',
+    reason: text,
   };
 
   process.stdout.write(JSON.stringify(response) + '\n');

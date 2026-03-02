@@ -29,46 +29,48 @@ describe('hush redact-hook', () => {
   it('should redact email from Bash stdout', () => {
     const payload = {
       tool_name: 'Bash',
-      tool_output: { stdout: 'email: test@foo.com' },
+      tool_response: { stdout: 'email: test@foo.com' },
     };
     const { stdout, exitCode } = runHook(JSON.stringify(payload));
     expect(exitCode).toBe(0);
 
     const result = JSON.parse(stdout);
-    expect(result.hookSpecificOutput.hookEventName).toBe('PostToolUse');
-    expect(result.hookSpecificOutput.outputOverride).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
-    expect(result.hookSpecificOutput.outputOverride).not.toContain('test@foo.com');
+    expect(result.decision).toBe('block');
+    expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(result.reason).not.toContain('test@foo.com');
   });
 
-  it('should redact email from Read content', () => {
+  it('should redact email from Read file.content', () => {
     const payload = {
       tool_name: 'Read',
-      tool_output: { content: 'Contact: admin@internal.corp' },
+      tool_response: { file: { content: 'Contact: admin@internal.corp', filePath: '/app/config.json' } },
     };
     const { stdout, exitCode } = runHook(JSON.stringify(payload));
     expect(exitCode).toBe(0);
 
     const result = JSON.parse(stdout);
-    expect(result.hookSpecificOutput.outputOverride).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
-    expect(result.hookSpecificOutput.outputOverride).not.toContain('admin@internal.corp');
+    expect(result.decision).toBe('block');
+    expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(result.reason).not.toContain('admin@internal.corp');
   });
 
   it('should redact IP address from Bash stderr', () => {
     const payload = {
       tool_name: 'Bash',
-      tool_output: { stderr: 'connection to 192.168.1.100 failed' },
+      tool_response: { stderr: 'connection to 192.168.1.100 failed' },
     };
     const { stdout, exitCode } = runHook(JSON.stringify(payload));
     expect(exitCode).toBe(0);
 
     const result = JSON.parse(stdout);
-    expect(result.hookSpecificOutput.outputOverride).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
+    expect(result.decision).toBe('block');
+    expect(result.reason).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
   });
 
   it('should pass through clean output (no PII) with no output', () => {
     const payload = {
       tool_name: 'Bash',
-      tool_output: { stdout: 'hello world' },
+      tool_response: { stdout: 'hello world' },
     };
     const { stdout, exitCode } = runHook(JSON.stringify(payload));
     expect(exitCode).toBe(0);
@@ -87,7 +89,7 @@ describe('hush redact-hook', () => {
     expect(stderr).toContain('invalid JSON');
   });
 
-  it('should handle payload with no tool_output', () => {
+  it('should handle payload with no tool_response', () => {
     const payload = { tool_name: 'Bash' };
     const { stdout, exitCode } = runHook(JSON.stringify(payload));
     expect(exitCode).toBe(0);
@@ -97,7 +99,7 @@ describe('hush redact-hook', () => {
   it('should combine stdout and stderr when both have PII', () => {
     const payload = {
       tool_name: 'Bash',
-      tool_output: {
+      tool_response: {
         stdout: 'user email: alice@example.com',
         stderr: 'warning: 10.0.0.1 unreachable',
       },
@@ -106,19 +108,35 @@ describe('hush redact-hook', () => {
     expect(exitCode).toBe(0);
 
     const result = JSON.parse(stdout);
-    expect(result.hookSpecificOutput.outputOverride).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
-    expect(result.hookSpecificOutput.outputOverride).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
+    expect(result.decision).toBe('block');
+    expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(result.reason).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
   });
 
-  it('should redact secrets from tool output', () => {
+  it('should redact secrets from tool response', () => {
     const payload = {
       tool_name: 'Bash',
-      tool_output: { stdout: 'api_key=sk-1234567890abcdef1234' },
+      tool_response: { stdout: 'api_key=sk-1234567890abcdef1234' },
     };
     const { stdout, exitCode } = runHook(JSON.stringify(payload));
     expect(exitCode).toBe(0);
 
     const result = JSON.parse(stdout);
-    expect(result.hookSpecificOutput.outputOverride).toMatch(/\[SENSITIVE_SECRET_[a-f0-9]{6}\]/);
+    expect(result.decision).toBe('block');
+    expect(result.reason).toMatch(/\[SENSITIVE_SECRET_[a-f0-9]{6}\]/);
+  });
+
+  it('should handle Grep tool with top-level content field', () => {
+    const payload = {
+      tool_name: 'Grep',
+      tool_response: { content: 'src/config.ts:3:  email: "dev@internal.corp"' },
+    };
+    const { stdout, exitCode } = runHook(JSON.stringify(payload));
+    expect(exitCode).toBe(0);
+
+    const result = JSON.parse(stdout);
+    expect(result.decision).toBe('block');
+    expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(result.reason).not.toContain('dev@internal.corp');
   });
 });
