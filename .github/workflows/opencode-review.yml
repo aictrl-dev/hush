@@ -120,11 +120,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
-          echo "Starting review with hush-zhipu/glm-5 for SHA $SHA..."
+          echo "Starting review with hush-zhipu/glm-4.7-flash for SHA $SHA..."
           echo "opencode.json:"; cat opencode.json
           echo "Hush health:"; curl -sf http://127.0.0.1:4000/health || echo "gateway unreachable"
 
-          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-5 "Review the changes in this PR for the Hush Semantic Gateway.
+          # Use glm-4.7-flash for speed — glm-5 takes 3-8 min per inference and
+          # can't complete a multi-file review within the 15-minute timeout.
+          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-4.7-flash "Review the changes in this PR for the Hush Semantic Gateway.
 
           **IMPORTANT**: This is a code review only. Do NOT run tests, npm commands, or build commands. Only read source files and git diffs.
 
