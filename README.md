@@ -127,6 +127,47 @@ CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
 
 Each developer just needs `hush` running locally. All AI tools in the project will route through it automatically.
 
+## Hooks Mode (Claude Code)
+
+Hush can also run as a **Claude Code hook** — redacting PII from tool outputs *before Claude ever sees them*. No proxy required.
+
+### Setup
+
+```bash
+hush init --hooks
+```
+
+This adds a `PostToolUse` hook to `.claude/settings.json` that runs `hush redact-hook` after every `Bash`, `Read`, `Grep`, and `WebFetch` tool call.
+
+Use `--local` to write to `settings.local.json` instead (for personal overrides not committed to the repo).
+
+### How it works
+
+```
+Local files/commands → [Hook: redact before Claude sees] → Claude's context
+                                                               ↓
+                                                          API request
+                                                               ↓
+                                                    [Proxy: redact before cloud]
+                                                               ↓
+                                                          LLM Provider
+```
+
+When a tool runs (e.g., `cat .env`), the hook intercepts the output, scans for PII, and replaces it with tokens before Claude processes it. Claude only ever sees `[USER_EMAIL_f22c5a]`, not `alice@company.com`.
+
+### Hooks vs Proxy
+
+| | Hooks Mode | Proxy Mode |
+|---|---|---|
+| **What's protected** | Tool outputs (before Claude sees them) | API requests (before they leave your machine) |
+| **Setup** | `hush init --hooks` | `hush` + point `ANTHROPIC_BASE_URL` |
+| **Works with** | Claude Code only | Any AI tool |
+| **Defense-in-depth** | Use both for maximum coverage | Use both for maximum coverage |
+
+### Defense-in-depth
+
+For maximum protection, use both modes together. The team config example in [`examples/team-config/`](examples/team-config/) shows this setup — hooks redact tool outputs and the proxy redacts API requests.
+
 ## How it Works
 
 1. **Intercept** — Hush sits on your machine between your AI tool and the LLM provider.
