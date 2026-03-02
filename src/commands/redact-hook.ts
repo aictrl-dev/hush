@@ -1,17 +1,28 @@
 /**
- * hush redact-hook — Claude Code PostToolUse hook handler
+ * hush redact-hook — Claude Code PreToolUse / PostToolUse hook handler
  *
- * Reads the hook payload from stdin, redacts PII from the tool response,
- * and blocks the output (replacing it with redacted text) if PII was found.
+ * Reads the hook payload from stdin, redacts PII, and returns the
+ * appropriate response format depending on the hook event type:
+ *
+ *   PreToolUse  — redacts outbound MCP tool arguments (updatedInput)
+ *   PostToolUse — redacts inbound MCP tool results  (updatedMCPToolOutput)
+ *                 or blocks built-in tool output     (decision: "block")
  *
  * Exit codes:
- *   0 — success (may or may not block)
+ *   0 — success (may or may not redact)
  *   2 — malformed input (blocks the tool call per hooks spec)
  */
 
 import { Redactor } from '../middleware/redactor.js';
 
+interface MCPContentBlock {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+}
+
 interface HookPayload {
+  hook_event_name?: 'PreToolUse' | 'PostToolUse';
   tool_name?: string;
   tool_input?: Record<string, unknown>;
   tool_response?: {
@@ -21,18 +32,13 @@ interface HookPayload {
     // Read tool (nested under file)
     file?: { content?: string; [key: string]: unknown };
     // Grep / WebFetch / generic
-    content?: string;
+    content?: string | MCPContentBlock[];
     output?: string;
     [key: string]: unknown;
   };
 }
 
-interface HookResponse {
-  decision: 'block';
-  reason: string;
-}
-
-/** Collect all text from a tool_response object. */
+/** Collect all text from a built-in tool_response object. */
 function extractText(toolResponse: HookPayload['tool_response']): string | null {
   if (!toolResponse || typeof toolResponse !== 'object') return null;
 
@@ -58,8 +64,8 @@ function extractText(toolResponse: HookPayload['tool_response']): string | null 
   return parts.length > 0 ? parts.join('\n') : null;
 }
 
-/** Redact PII from the tool response text. */
-function redactToolResponse(
+/** Redact PII from a built-in tool response text. */
+function redactBuiltinToolResponse(
   toolResponse: NonNullable<HookPayload['tool_response']>,
   redactor: Redactor,
 ): { text: string; hasRedacted: boolean } {
@@ -68,6 +74,83 @@ function redactToolResponse(
 
   const { content, hasRedacted } = redactor.redact(text);
   return { text: content as string, hasRedacted };
+}
+
+/** Handle PreToolUse — redact outbound MCP tool arguments. */
+function handlePreToolUse(payload: HookPayload, redactor: Redactor): void {
+  if (!payload.tool_input || typeof payload.tool_input !== 'object') {
+    process.exit(0);
+  }
+
+  const { content, hasRedacted } = redactor.redact(payload.tool_input);
+
+  if (!hasRedacted) {
+    process.exit(0);
+  }
+
+  const response = {
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      permissionDecision: 'allow',
+      updatedInput: content,
+    },
+  };
+
+  process.stdout.write(JSON.stringify(response) + '\n');
+  process.exit(0);
+}
+
+/** Handle PostToolUse for MCP tools — redact inbound content blocks. */
+function handlePostToolUseMCP(payload: HookPayload, redactor: Redactor): void {
+  const toolResponse = payload.tool_response;
+  if (!toolResponse || typeof toolResponse !== 'object') {
+    process.exit(0);
+  }
+
+  const contentArray = toolResponse.content;
+  if (!Array.isArray(contentArray)) {
+    process.exit(0);
+  }
+
+  const { content: redactedArray, hasRedacted } = redactor.redact(contentArray);
+
+  if (!hasRedacted) {
+    process.exit(0);
+  }
+
+  const response = {
+    updatedMCPToolOutput: {
+      content: redactedArray,
+    },
+  };
+
+  process.stdout.write(JSON.stringify(response) + '\n');
+  process.exit(0);
+}
+
+/** Handle PostToolUse for built-in tools — existing block/reason flow. */
+function handlePostToolUseBuiltin(payload: HookPayload, redactor: Redactor): void {
+  if (!payload.tool_response) {
+    process.exit(0);
+  }
+
+  const { text, hasRedacted } = redactBuiltinToolResponse(payload.tool_response, redactor);
+
+  if (!hasRedacted) {
+    process.exit(0);
+  }
+
+  const response = {
+    decision: 'block' as const,
+    reason: text,
+  };
+
+  process.stdout.write(JSON.stringify(response) + '\n');
+  process.exit(0);
+}
+
+function isMCPTool(toolName?: string): boolean {
+  return typeof toolName === 'string' && toolName.startsWith('mcp__');
 }
 
 function readStdin(): Promise<string> {
@@ -89,7 +172,6 @@ export async function run(): Promise<void> {
   }
 
   if (!raw.trim()) {
-    // Empty stdin — nothing to redact
     process.exit(0);
   }
 
@@ -101,24 +183,23 @@ export async function run(): Promise<void> {
     process.exit(2);
   }
 
-  if (!payload.tool_response) {
-    // No tool_response to redact
-    process.exit(0);
-  }
-
   const redactor = new Redactor();
-  const { text, hasRedacted } = redactToolResponse(payload.tool_response, redactor);
+  const eventName = payload.hook_event_name;
 
-  if (!hasRedacted) {
-    // No PII found — let Claude Code keep the original output
-    process.exit(0);
+  if (eventName === 'PreToolUse') {
+    handlePreToolUse(payload, redactor);
+    return;
   }
 
-  const response: HookResponse = {
-    decision: 'block',
-    reason: text,
-  };
+  if (eventName === 'PostToolUse') {
+    if (isMCPTool(payload.tool_name)) {
+      handlePostToolUseMCP(payload, redactor);
+    } else {
+      handlePostToolUseBuiltin(payload, redactor);
+    }
+    return;
+  }
 
-  process.stdout.write(JSON.stringify(response) + '\n');
-  process.exit(0);
+  // Backward compat: no hook_event_name → treat as PostToolUse built-in
+  handlePostToolUseBuiltin(payload, redactor);
 }

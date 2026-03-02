@@ -34,15 +34,24 @@ describe('hush init --hooks', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('should create .claude/settings.json from scratch', () => {
+  it('should create .claude/settings.json with both PreToolUse and PostToolUse', () => {
     const { stdout, exitCode } = runInit(tmpDir);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Wrote hush hooks config');
 
     const settings = JSON.parse(readFileSync(join(tmpDir, '.claude', 'settings.json'), 'utf-8'));
-    expect(settings.hooks.PostToolUse).toHaveLength(1);
+
+    // PreToolUse
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
+    expect(settings.hooks.PreToolUse[0].matcher).toBe('mcp__.*');
+    expect(settings.hooks.PreToolUse[0].hooks[0].command).toBe('hush redact-hook');
+
+    // PostToolUse
+    expect(settings.hooks.PostToolUse).toHaveLength(2);
     expect(settings.hooks.PostToolUse[0].matcher).toBe('Bash|Read|Grep|WebFetch');
     expect(settings.hooks.PostToolUse[0].hooks[0].command).toBe('hush redact-hook');
+    expect(settings.hooks.PostToolUse[1].matcher).toBe('mcp__.*');
+    expect(settings.hooks.PostToolUse[1].hooks[0].command).toBe('hush redact-hook');
   });
 
   it('should merge into existing settings preserving other keys', () => {
@@ -59,8 +68,9 @@ describe('hush init --hooks', () => {
     const settings = JSON.parse(readFileSync(join(claudeDir, 'settings.json'), 'utf-8'));
     // Preserved existing env
     expect(settings.env.ANTHROPIC_BASE_URL).toBe('http://127.0.0.1:4000');
-    // Added hooks
-    expect(settings.hooks.PostToolUse).toHaveLength(1);
+    // Added both hook types
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
+    expect(settings.hooks.PostToolUse).toHaveLength(2);
     expect(settings.hooks.PostToolUse[0].hooks[0].command).toBe('hush redact-hook');
   });
 
@@ -71,7 +81,8 @@ describe('hush init --hooks', () => {
     expect(stdout).toContain('already configured');
 
     const settings = JSON.parse(readFileSync(join(tmpDir, '.claude', 'settings.json'), 'utf-8'));
-    expect(settings.hooks.PostToolUse).toHaveLength(1); // Not duplicated
+    expect(settings.hooks.PreToolUse).toHaveLength(1);  // Not duplicated
+    expect(settings.hooks.PostToolUse).toHaveLength(2); // Not duplicated
   });
 
   it('should write to settings.local.json with --local flag', () => {
@@ -83,6 +94,7 @@ describe('hush init --hooks', () => {
     expect(existsSync(localPath)).toBe(true);
 
     const settings = JSON.parse(readFileSync(localPath, 'utf-8'));
+    expect(settings.hooks.PreToolUse[0].hooks[0].command).toBe('hush redact-hook');
     expect(settings.hooks.PostToolUse[0].hooks[0].command).toBe('hush redact-hook');
   });
 
@@ -97,5 +109,67 @@ describe('hush init --hooks', () => {
       expect(err.status).toBe(1);
       expect(err.stderr).toContain('Usage');
     }
+  });
+
+  it('should upgrade old PostToolUse-only config by adding PreToolUse', () => {
+    const claudeDir = join(tmpDir, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
+
+    // Simulate old config with only PostToolUse
+    const oldConfig = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: 'Bash|Read|Grep|WebFetch',
+            hooks: [{ type: 'command', command: 'hush redact-hook', timeout: 10 }],
+          },
+        ],
+      },
+    };
+    writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(oldConfig, null, 2));
+
+    const { stdout, exitCode } = runInit(tmpDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Wrote hush hooks config');
+
+    const settings = JSON.parse(readFileSync(join(claudeDir, 'settings.json'), 'utf-8'));
+
+    // PreToolUse added
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
+    expect(settings.hooks.PreToolUse[0].matcher).toBe('mcp__.*');
+
+    // PostToolUse: original entry preserved + new mcp entry added
+    expect(settings.hooks.PostToolUse).toHaveLength(2);
+    expect(settings.hooks.PostToolUse[0].matcher).toBe('Bash|Read|Grep|WebFetch');
+    expect(settings.hooks.PostToolUse[1].matcher).toBe('mcp__.*');
+  });
+
+  it('should not duplicate PostToolUse entries when upgrading', () => {
+    const claudeDir = join(tmpDir, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
+
+    // Old config already has the built-in PostToolUse entry
+    const oldConfig = {
+      hooks: {
+        PostToolUse: [
+          {
+            matcher: 'Bash|Read|Grep|WebFetch',
+            hooks: [{ type: 'command', command: 'hush redact-hook', timeout: 10 }],
+          },
+        ],
+      },
+    };
+    writeFileSync(join(claudeDir, 'settings.json'), JSON.stringify(oldConfig, null, 2));
+
+    // Run init twice
+    runInit(tmpDir);
+    const { stdout, exitCode } = runInit(tmpDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('already configured');
+
+    const settings = JSON.parse(readFileSync(join(claudeDir, 'settings.json'), 'utf-8'));
+    // Should have exactly 1 PreToolUse and 2 PostToolUse (no duplicates)
+    expect(settings.hooks.PreToolUse).toHaveLength(1);
+    expect(settings.hooks.PostToolUse).toHaveLength(2);
   });
 });

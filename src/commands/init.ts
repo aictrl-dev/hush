@@ -9,41 +9,79 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
+const HUSH_HOOK = {
+  type: 'command' as const,
+  command: 'hush redact-hook',
+  timeout: 10,
+};
+
 const HOOK_CONFIG = {
   hooks: {
+    PreToolUse: [
+      {
+        matcher: 'mcp__.*',
+        hooks: [HUSH_HOOK],
+      },
+    ],
     PostToolUse: [
       {
         matcher: 'Bash|Read|Grep|WebFetch',
-        hooks: [
-          {
-            type: 'command' as const,
-            command: 'hush redact-hook',
-            timeout: 10,
-          },
-        ],
+        hooks: [HUSH_HOOK],
+      },
+      {
+        matcher: 'mcp__.*',
+        hooks: [HUSH_HOOK],
       },
     ],
   },
 };
 
+interface HookEntry {
+  matcher: string;
+  hooks: Array<{ type: string; command: string; timeout?: number }>;
+}
+
 interface SettingsJson {
   hooks?: {
-    PostToolUse?: Array<{
-      matcher: string;
-      hooks: Array<{ type: string; command: string; timeout?: number }>;
-    }>;
+    PreToolUse?: HookEntry[];
+    PostToolUse?: HookEntry[];
     [key: string]: unknown;
   };
   [key: string]: unknown;
 }
 
-function hasHushHook(settings: SettingsJson): boolean {
-  const postToolUse = settings.hooks?.PostToolUse;
-  if (!Array.isArray(postToolUse)) return false;
-
-  return postToolUse.some((entry) =>
+function hasHushHookInEntries(entries: HookEntry[] | undefined): boolean {
+  if (!Array.isArray(entries)) return false;
+  return entries.some((entry) =>
     entry.hooks?.some((h) => h.command?.includes('hush redact-hook')),
   );
+}
+
+function hasHushHook(settings: SettingsJson): boolean {
+  return (
+    hasHushHookInEntries(settings.hooks?.PreToolUse) &&
+    hasHushHookInEntries(settings.hooks?.PostToolUse)
+  );
+}
+
+function mergeHookEntries(
+  existing: HookEntry[] | undefined,
+  newEntries: HookEntry[],
+): HookEntry[] {
+  const merged = Array.isArray(existing) ? [...existing] : [];
+
+  for (const entry of newEntries) {
+    const alreadyHas = merged.some(
+      (e) =>
+        e.matcher === entry.matcher &&
+        e.hooks?.some((h) => h.command?.includes('hush redact-hook')),
+    );
+    if (!alreadyHas) {
+      merged.push(entry);
+    }
+  }
+
+  return merged;
 }
 
 function mergeHooks(existing: SettingsJson): SettingsJson {
@@ -53,11 +91,11 @@ function mergeHooks(existing: SettingsJson): SettingsJson {
     merged.hooks = {};
   }
 
-  if (!Array.isArray(merged.hooks.PostToolUse)) {
-    merged.hooks.PostToolUse = [];
-  }
-
-  merged.hooks = { ...merged.hooks, PostToolUse: [...merged.hooks.PostToolUse, ...HOOK_CONFIG.hooks.PostToolUse] };
+  merged.hooks = {
+    ...merged.hooks,
+    PreToolUse: mergeHookEntries(merged.hooks.PreToolUse, HOOK_CONFIG.hooks.PreToolUse),
+    PostToolUse: mergeHookEntries(merged.hooks.PostToolUse, HOOK_CONFIG.hooks.PostToolUse),
+  };
 
   return merged;
 }
@@ -70,7 +108,7 @@ export function run(args: string[]): void {
     process.stderr.write('Usage: hush init --hooks [--local]\n');
     process.stderr.write('\n');
     process.stderr.write('Options:\n');
-    process.stderr.write('  --hooks   Generate Claude Code PostToolUse hook config\n');
+    process.stderr.write('  --hooks   Generate Claude Code hook config (PreToolUse + PostToolUse)\n');
     process.stderr.write('  --local   Write to settings.local.json instead of settings.json\n');
     process.exit(1);
   }
