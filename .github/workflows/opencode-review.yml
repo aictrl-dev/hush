@@ -106,7 +106,7 @@ jobs:
 
       - name: Direct OpenCode Review
         if: steps.check_changes.outputs.skip != 'true'
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
