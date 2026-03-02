@@ -57,11 +57,14 @@ Create `opencode.json` in your project root:
 
 ### Gemini CLI
 
-Gemini CLI only supports env vars for endpoint override (no settings file option):
+Add `.gemini/.env` to your project root (or set the env var directly):
 
 ```bash
-CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000 gemini
+# .gemini/.env
+CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
 ```
+
+Or: `CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000 gemini`
 
 ### Verify it works
 
@@ -72,6 +75,57 @@ INFO: Redacted sensitive data from request  path="/v1/messages"  tokenCount=2  d
 ```
 
 Your tool still sees the real data (rehydrated locally). The LLM provider only ever sees tokens like `[USER_EMAIL_f22c5a]`.
+
+## Enforce for Your Team
+
+Commit config files to your repo so every developer automatically routes through hush — no manual setup per person.
+
+Copy the files from [`examples/team-config/`](examples/team-config/) into your project root:
+
+```
+your-project/
+├── .claude/settings.json     # Claude Code → hush
+├── .codex/config.toml        # Codex → hush
+├── .gemini/.env              # Gemini CLI → hush
+└── opencode.json             # OpenCode → hush
+```
+
+**Claude Code** — `.claude/settings.json`:
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000"
+  }
+}
+```
+
+**Codex** — `.codex/config.toml`:
+```toml
+model_provider = "hush"
+
+[model_providers.hush]
+base_url = "http://127.0.0.1:4000/v1"
+```
+
+**OpenCode** — `opencode.json`:
+```json
+{
+  "provider": {
+    "zai-coding-plan": {
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+      }
+    }
+  }
+}
+```
+
+**Gemini CLI** — `.gemini/.env`:
+```
+CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
+```
+
+Each developer just needs `hush` running locally. All AI tools in the project will route through it automatically.
 
 ## How it Works
 
@@ -88,7 +142,7 @@ Your tool still sees the real data (rehydrated locally). The LLM provider only e
 | Claude Code | `~/.claude/settings.json` | `/v1/messages` → Anthropic |
 | Codex | `~/.codex/config.toml` | `/v1/chat/completions` → OpenAI |
 | OpenCode | `opencode.json` | `/api/paas/v4/**` → ZhipuAI |
-| Gemini CLI | `CODE_ASSIST_ENDPOINT` env var | `/v1beta/models/**` → Google |
+| Gemini CLI | `.gemini/.env` | `/v1beta/models/**` → Google |
 | Any tool | Point base URL at hush | `/*` catch-all with auto-detect |
 
 Hush forwards your existing auth headers transparently — no API keys need to be reconfigured.

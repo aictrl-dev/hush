@@ -1,0 +1,4 @@
+model_provider = "hush"
+
+[model_providers.hush]
+base_url = "http://127.0.0.1:4000/v1"
