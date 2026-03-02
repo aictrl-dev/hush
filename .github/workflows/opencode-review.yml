@@ -103,10 +103,14 @@ jobs:
           curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
           echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
-          # Configure OpenCode to route through hush proxy + hush plugin
+          # Configure OpenCode with custom provider routing through hush proxy.
+          # NOTE: Overriding baseURL on built-in providers (zai-coding-plan) does not
+          # work — OpenCode's bundled @ai-sdk/openai-compatible ignores options.baseURL
+          # (see anomalyco/opencode#5674). Instead, we define a new custom provider
+          # "hush-zhipu" that explicitly sets baseURL via the npm adapter.
           mkdir -p .opencode/plugins
           cp examples/team-config/.opencode/plugins/hush.ts .opencode/plugins/hush.ts
-          printf '%s\n' '{"provider":{"zai-coding-plan":{"options":{"baseURL":"http://127.0.0.1:4000/api/coding/paas/v4"}}},"plugin":[".opencode/plugins/hush.ts"]}' > opencode.json
+          printf '%s\n' '{"provider":{"hush-zhipu":{"npm":"@ai-sdk/openai-compatible","name":"Hush ZhipuAI Proxy","options":{"baseURL":"http://127.0.0.1:4000/api/coding/paas/v4","apiKey":"{env:ZHIPU_API_KEY}"},"models":{"glm-5":{"name":"GLM 5"},"glm-4.7-flash":{"name":"GLM 4.7 Flash"}}}},"plugin":[".opencode/plugins/hush.ts"]}' > opencode.json
 
       - name: Direct OpenCode Review
         if: steps.check_changes.outputs.skip != 'true'
@@ -116,11 +120,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
-          echo "Starting review with GLM-5 for SHA $SHA..."
+          echo "Starting review with hush-zhipu/glm-5 for SHA $SHA..."
           echo "opencode.json:"; cat opencode.json
           echo "Hush health:"; curl -sf http://127.0.0.1:4000/health || echo "gateway unreachable"
 
-          $HOME/.opencode/bin/opencode run --model zai-coding-plan/glm-5 "Review the changes in this PR for the Hush Semantic Gateway.
+          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-5 "Review the changes in this PR for the Hush Semantic Gateway.
 
           **IMPORTANT**: This is a code review only. Do NOT run tests, npm commands, or build commands. Only read source files and git diffs.
 

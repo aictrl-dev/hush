@@ -1,8 +1,15 @@
 {
   "provider": {
-    "zai-coding-plan": {
+    "hush-zhipu": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Hush ZhipuAI Proxy",
       "options": {
-        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4",
+        "apiKey": "{env:ZHIPU_API_KEY}"
+      },
+      "models": {
+        "glm-5": { "name": "GLM 5" },
+        "glm-4.7-flash": { "name": "GLM 4.7 Flash" }
       }
     }
   },
