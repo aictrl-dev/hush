@@ -89,6 +89,10 @@ jobs:
           curl -sf http://127.0.0.1:4000/health || { echo "::error::Hush gateway failed to start"; exit 1; }
           echo "Hush gateway running on :4000"
 
+      - name: Build project
+        if: steps.check_changes.outputs.skip != 'true'
+        run: npm ci && npm run build
+
       - name: Setup OpenCode
         if: steps.check_changes.outputs.skip != 'true'
         env:
