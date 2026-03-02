@@ -106,12 +106,15 @@ jobs:
 
       - name: Direct OpenCode Review
         if: steps.check_changes.outputs.skip != 'true'
+        timeout-minutes: 10
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
           echo "Starting review with GLM-5 for SHA $SHA..."
+          echo "opencode.json:"; cat opencode.json
+          echo "Hush health:"; curl -sf http://127.0.0.1:4000/health || echo "gateway unreachable"
 
           $HOME/.opencode/bin/opencode run --model zai-coding-plan/glm-5 "Review the changes in this PR for the Hush Semantic Gateway.
 
