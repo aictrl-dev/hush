@@ -79,12 +79,14 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         run: |
           npm install -g @aictrl/hush@0.1.7
-          PORT=4000 HUSH_HOST=127.0.0.1 hush &
+          HUSH_BIN="$(npm prefix -g)/bin/hush"
+          PORT=4000 HUSH_HOST=127.0.0.1 "$HUSH_BIN" &
           # Wait for gateway to be ready
           for i in $(seq 1 20); do
             curl -sf http://127.0.0.1:4000/health > /dev/null 2>&1 && break
             sleep 0.5
           done
+          curl -sf http://127.0.0.1:4000/health || { echo "::error::Hush gateway failed to start"; exit 1; }
           echo "Hush gateway running on :4000"
 
       - name: Setup OpenCode
