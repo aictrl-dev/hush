@@ -120,13 +120,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
-          echo "Starting review with hush-zhipu/glm-4.7-flash for SHA $SHA..."
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "Starting review with hush-zhipu/glm-4.7-flash for PR #$PR_NUMBER SHA $SHA..."
           echo "opencode.json:"; cat opencode.json
           echo "Hush health:"; curl -sf http://127.0.0.1:4000/health || echo "gateway unreachable"
 
-          # Use glm-4.7-flash for speed — glm-5 takes 3-8 min per inference and
-          # can't complete a multi-file review within the 15-minute timeout.
-          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-4.7-flash "Review the changes in this PR for the Hush Semantic Gateway.
+          $HOME/.opencode/bin/opencode run --model hush-zhipu/glm-4.7-flash "Review the changes in PR #$PR_NUMBER for the Hush Semantic Gateway.
 
           **IMPORTANT**: This is a code review only. Do NOT run tests, npm commands, or build commands. Only read source files and git diffs.
 
@@ -136,6 +135,9 @@ jobs:
           3. **Security**: Look for potential PII leaks or insecure token handling in the vault.
           4. **Reliability**: Ensure the proxy handles upstream errors gracefully.
 
-          Keep the summary concise but technical. Post findings as a single markdown comment on the PR using gh pr comment, then stop.
+          Keep the review concise. Post findings as a single markdown comment using:
+            gh pr comment $PR_NUMBER --body \"<your review>\"
+
+          Do NOT try to auto-detect the PR number — use exactly $PR_NUMBER.
 
           **CRITICAL**: Include the string 'Reviewed SHA: $SHA' at the very end of your comment so I can track which commits have been reviewed."

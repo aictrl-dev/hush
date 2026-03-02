@@ -105,7 +105,7 @@ async function proxyRequest(
       method: req.method,
       headers: fetchHeaders,
       body: hasBody ? JSON.stringify(redactedBody) : undefined,
-      signal: AbortSignal.timeout(30000), // 30s timeout
+      signal: AbortSignal.timeout(120000), // 120s timeout (LLM first-token can be slow)
     });
 
     // Handle Upstream Errors (4xx, 5xx)
