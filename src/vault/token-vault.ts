@@ -88,7 +88,9 @@ export class TokenVault {
     let buffer = '';
     const maxTokenLen = Math.max(...[...this.vault.keys()].map(t => t.length), 0);
 
-    // Accumulate content fields across SSE events to reassemble split tokens
+    // Accumulate content fields across SSE events to reassemble split tokens.
+    // Cap buffer size to prevent unbounded memory growth on very long streams.
+    const MAX_BUFFER_SIZE = 1024 * 1024; // 1 MB per field
     const contentBuffers: Record<string, string> = {};
     const CONTENT_FIELDS = ['content', 'reasoning_content', 'partial_json'];
 
@@ -186,11 +188,23 @@ export class TokenVault {
           const bufKey = actualField;
           contentBuffers[bufKey] = (contentBuffers[bufKey] || '') + target[actualField];
 
-          const buf = contentBuffers[bufKey];
+          // Cap buffer size: flush everything if it grows too large
+          if (contentBuffers[bufKey]!.length > MAX_BUFFER_SIZE) {
+            target[actualField] = flushField(bufKey);
+            modified = true;
+            continue;
+          }
+
+          const buf = contentBuffers[bufKey]!;
           const lastBracket = buf.lastIndexOf('[');
+          // Only treat as partial token if the text after '[' looks like a
+          // token prefix (uppercase letter or underscore), not JSON array content.
+          // Also hold back a bare '[' at the end — not enough chars yet to decide.
+          const tail = lastBracket >= 0 ? buf.substring(lastBracket) : '';
           const hasPartialToken = maxTokenLen > 0 && lastBracket >= 0 &&
-            !buf.substring(lastBracket).includes(']') &&
-            buf.length - lastBracket < maxTokenLen;
+            !tail.includes(']') &&
+            buf.length - lastBracket < maxTokenLen &&
+            (tail === '[' || /^\[[A-Z_]/.test(tail));
 
           if (hasPartialToken) {
             const safe = buf.substring(0, lastBracket);

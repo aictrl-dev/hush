@@ -5,6 +5,16 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./opencode-plugin": {
+      "import": "./dist/plugins/opencode-hush.js",
+      "types": "./dist/plugins/opencode-hush.d.ts"
+    }
+  },
   "bin": {
     "hush": "dist/cli.js"
   },

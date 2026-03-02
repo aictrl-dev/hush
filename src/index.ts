@@ -159,7 +159,7 @@ async function proxyRequest(
 
   } catch (error) {
     log.error({ err: error, path: req.path }, 'Failed to forward request');
-    res.status(500).json({ error: 'Gateway forwarding failed' });
+    res.status(502).json({ error: 'Gateway forwarding failed' });
   }
 }
 

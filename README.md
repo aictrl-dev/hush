@@ -127,6 +127,99 @@ CODE_ASSIST_ENDPOINT=http://127.0.0.1:4000
 
 Each developer just needs `hush` running locally. All AI tools in the project will route through it automatically.
 
+## Hooks Mode (Claude Code)
+
+Hush can also run as a **Claude Code hook** — redacting PII from tool outputs *before Claude ever sees them*. No proxy required.
+
+### Setup
+
+```bash
+hush init --hooks
+```
+
+This adds a `PostToolUse` hook to `.claude/settings.json` that runs `hush redact-hook` after every `Bash`, `Read`, `Grep`, and `WebFetch` tool call.
+
+Use `--local` to write to `settings.local.json` instead (for personal overrides not committed to the repo).
+
+### How it works
+
+```
+Local files/commands → [Hook: redact before Claude sees] → Claude's context
+                                                               ↓
+                                                          API request
+                                                               ↓
+                                                    [Proxy: redact before cloud]
+                                                               ↓
+                                                          LLM Provider
+```
+
+When a tool runs (e.g., `cat .env`), the hook inspects the response for PII. If PII is found, the hook **blocks** the raw output and provides Claude with the redacted version instead. Claude only ever sees `[USER_EMAIL_f22c5a]`, not `alice@company.com`.
+
+### Hooks vs Proxy
+
+| | Hooks Mode | Proxy Mode |
+|---|---|---|
+| **What's protected** | Tool outputs (before Claude sees them) | API requests (before they leave your machine) |
+| **Setup** | `hush init --hooks` | `hush` + point `ANTHROPIC_BASE_URL` |
+| **Works with** | Claude Code only | Any AI tool |
+| **Defense-in-depth** | Use both for maximum coverage | Use both for maximum coverage |
+
+### Defense-in-depth
+
+For maximum protection, use both modes together. The team config example in [`examples/team-config/`](examples/team-config/) shows this setup — hooks redact tool outputs and the proxy redacts API requests.
+
+## OpenCode Plugin
+
+Hush provides an **OpenCode plugin** that blocks reads of sensitive files (`.env`, `*.pem`, `credentials.*`, `id_rsa`, etc.) before the tool executes — the AI model never sees the contents.
+
+### Drop-in setup
+
+Copy the plugin file and update your `opencode.json`:
+
+```
+your-project/
+├── .opencode/plugins/hush.ts    # plugin file
+└── opencode.json                # add "plugin" array
+```
+
+```json
+{
+  "provider": {
+    "zai-coding-plan": {
+      "options": {
+        "baseURL": "http://127.0.0.1:4000/api/coding/paas/v4"
+      }
+    }
+  },
+  "plugin": [".opencode/plugins/hush.ts"]
+}
+```
+
+Find the drop-in plugin at [`examples/team-config/.opencode/plugins/hush.ts`](examples/team-config/.opencode/plugins/hush.ts).
+
+### npm import
+
+```typescript
+import { HushPlugin } from '@aictrl/hush/opencode-plugin'
+```
+
+### What it blocks
+
+| Tool | Blocked when |
+|------|-------------|
+| `read` | File path matches `.env*`, `*credentials*`, `*secret*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`, `*.asc`, `id_rsa*`, `.netrc`, `.pgpass` |
+| `bash` | Commands like `cat`, `head`, `tail`, `less`, `more`, `bat` target a sensitive file |
+
+### Plugin + Proxy = Defense-in-depth
+
+The plugin blocks reads of known-sensitive filenames. The proxy catches PII in files with normal names (e.g., `config.txt` containing an email). Together they provide two layers of protection:
+
+```
+Tool reads .env       → [Plugin: BLOCKED]           → model never sees it
+Tool reads config.txt → [Plugin: allowed]            → proxy redacts PII → model sees tokens
+                         (not a sensitive filename)
+```
+
 ## How it Works
 
 1. **Intercept** — Hush sits on your machine between your AI tool and the LLM provider.
