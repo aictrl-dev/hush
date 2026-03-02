@@ -79,7 +79,7 @@ jobs:
         if: steps.check_changes.outputs.skip != 'true'
         run: |
           npm ci && npm run build
-          PORT=4000 HUSH_HOST=127.0.0.1 node dist/cli.js &
+          PORT=4000 HUSH_HOST=127.0.0.1 node dist/cli.js > /tmp/hush-gateway.log 2>&1 &
           for i in $(seq 1 20); do
             curl -sf http://127.0.0.1:4000/health > /dev/null 2>&1 && break
             sleep 0.5
@@ -132,3 +132,15 @@ jobs:
           Do NOT try to auto-detect the PR number — use exactly $PR_NUMBER.
 
           **CRITICAL**: Include the string 'Reviewed SHA: $SHA' at the very end of your comment so I can track which commits have been reviewed."
+
+      - name: Verify Hush Proxy Was Used
+        if: steps.check_changes.outputs.skip != 'true'
+        run: |
+          echo "=== Hush Gateway Logs ==="
+          cat /tmp/hush-gateway.log 2>/dev/null || echo "No gateway log found"
+          echo ""
+          if grep -q "Starting stream proxy" /tmp/hush-gateway.log 2>/dev/null; then
+            echo "Hush proxy intercepted traffic"
+          else
+            echo "::warning::No proxy traffic detected in hush logs — review may have bypassed the gateway"
+          fi
