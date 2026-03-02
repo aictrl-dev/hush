@@ -1,6 +1,6 @@
 {
   "name": "@aictrl/hush",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Hush: A Semantic Security Gateway for AI Agents. Redacts PII from prompts and tool outputs locally before they hit the cloud.",
   "type": "module",
   "main": "dist/index.js",
