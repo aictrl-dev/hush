@@ -52,6 +52,9 @@
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"
   },
+  "overrides": {
+    "xml2js": "^0.6.2"
+  },
   "devDependencies": {
     "@types/blessed": "^0.1.27",
     "@types/cors": "^2.8.19",

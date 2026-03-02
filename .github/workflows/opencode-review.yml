@@ -69,15 +69,38 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup Node.js
+        if: steps.check_changes.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Start Hush Gateway
+        if: steps.check_changes.outputs.skip != 'true'
+        run: |
+          npm install -g @aictrl/hush@0.1.7
+          PORT=4000 HUSH_HOST=127.0.0.1 hush &
+          # Wait for gateway to be ready
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:4000/health > /dev/null 2>&1 && break
+            sleep 0.5
+          done
+          echo "Hush gateway running on :4000"
+
       - name: Setup OpenCode
         if: steps.check_changes.outputs.skip != 'true'
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use GITHUB_TOKEN to avoid rate limits when fetching version info
+          # Install OpenCode
           curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
           echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+
+          # Configure OpenCode to route through hush proxy + hush plugin
+          mkdir -p .opencode/plugins
+          cp examples/team-config/.opencode/plugins/hush.ts .opencode/plugins/hush.ts
+          printf '%s\n' '{"provider":{"zai-coding-plan":{"options":{"baseURL":"http://127.0.0.1:4000/api/coding/paas/v4"}}},"plugin":[".opencode/plugins/hush.ts"]}' > opencode.json
 
       - name: Direct OpenCode Review
         if: steps.check_changes.outputs.skip != 'true'
@@ -87,7 +110,7 @@ jobs:
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
           echo "Starting review with GLM-5 for SHA $SHA..."
-          
+
           $HOME/.opencode/bin/opencode run --model zai-coding-plan/glm-5 "Review the changes in this PR for the Hush Semantic Gateway.
 
           Focus areas:
@@ -95,7 +118,7 @@ jobs:
           2. **Streaming Integrity**: Check that the SSE/streaming proxy logic doesn't buffer unnecessarily or break the rehydration flow.
           3. **Security**: Look for potential PII leaks or insecure token handling in the vault.
           4. **Reliability**: Ensure the proxy handles upstream errors gracefully.
-          
+
           Keep the summary concise but technical. Post findings as a markdown comment on the PR.
-          
+
           **CRITICAL**: Include the string 'Reviewed SHA: $SHA' at the very end of your comment so I can track which commits have been reviewed."
