@@ -29,8 +29,8 @@ export function isSensitivePath(filePath: string): boolean {
   return SENSITIVE_GLOBS.some((re) => re.test(basename));
 }
 
-/** Commands that read file contents. */
-const READ_COMMANDS = /\b(cat|head|tail|less|more|bat)\b/;
+/** Commands that read file contents (includes batcat — Ubuntu symlink for bat). */
+const READ_COMMANDS = /\b(cat|head|tail|less|more|bat|batcat)\b/;
 
 /**
  * Check whether a bash command reads a sensitive file.
@@ -46,11 +46,13 @@ export function commandReadsSensitiveFile(cmd: string): boolean {
     const cmdIndex = tokens.findIndex((t) => READ_COMMANDS.test(t));
     if (cmdIndex === -1) continue;
 
-    // Check all tokens after the command for sensitive paths (skip flags)
+    // Check all tokens after the command for sensitive paths (skip flags).
+    // Expand shell variables/tilde so `cat $HOME/.env` and `cat ~/secrets/.env` are caught.
     for (let i = cmdIndex + 1; i < tokens.length; i++) {
       const token = tokens[i]!;
       if (token.startsWith('-')) continue; // skip flags like -n, -5
-      if (isSensitivePath(token)) return true;
+      const expanded = token.replace(/^~\//, '/home/user/').replace(/\$\{?\w+\}?\//g, '/');
+      if (isSensitivePath(expanded)) return true;
     }
   }
   return false;

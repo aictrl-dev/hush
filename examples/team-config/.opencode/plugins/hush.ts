@@ -33,7 +33,7 @@ function isSensitivePath(filePath: string): boolean {
   return SENSITIVE_GLOBS.some((re) => re.test(basename));
 }
 
-const READ_COMMANDS = /\b(cat|head|tail|less|more|bat)\b/;
+const READ_COMMANDS = /\b(cat|head|tail|less|more|bat|batcat)\b/;
 
 function commandReadsSensitiveFile(cmd: string): boolean {
   if (!READ_COMMANDS.test(cmd)) return false;
@@ -45,7 +45,8 @@ function commandReadsSensitiveFile(cmd: string): boolean {
     for (let i = cmdIndex + 1; i < tokens.length; i++) {
       const token = tokens[i]!;
       if (token.startsWith('-')) continue;
-      if (isSensitivePath(token)) return true;
+      const expanded = token.replace(/^~\//, '/home/user/').replace(/\$\{?\w+\}?\//g, '/');
+      if (isSensitivePath(expanded)) return true;
     }
   }
   return false;
