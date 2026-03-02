@@ -68,6 +68,10 @@ describe('commandReadsSensitiveFile', () => {
     'cat ~/.pgpass',
     'batcat .env',
     'batcat id_rsa',
+    'cat "$(echo .env)"',
+    'cat `.env`',
+    'cat <.env',
+    "cat '.env'",
   ])('blocks: %s', (cmd) => {
     expect(commandReadsSensitiveFile(cmd)).toBe(true);
   });

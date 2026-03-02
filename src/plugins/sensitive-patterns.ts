@@ -25,12 +25,17 @@ const SENSITIVE_GLOBS = [
  * Matches against the basename only so absolute/relative paths both work.
  */
 export function isSensitivePath(filePath: string): boolean {
-  const basename = filePath.split('/').pop() ?? '';
+  const basename = (filePath.split('/').pop() ?? '').trim();
   return SENSITIVE_GLOBS.some((re) => re.test(basename));
 }
 
 /** Commands that read file contents (includes batcat — Ubuntu symlink for bat). */
 const READ_COMMANDS = /\b(cat|head|tail|less|more|bat|batcat)\b/;
+
+/** Strip shell metacharacters that could wrap a filename to bypass detection. */
+function stripShellMeta(token: string): string {
+  return token.replace(/[`"'$(){}]/g, '');
+}
 
 /**
  * Check whether a bash command reads a sensitive file.
@@ -39,20 +44,27 @@ const READ_COMMANDS = /\b(cat|head|tail|less|more|bat|batcat)\b/;
 export function commandReadsSensitiveFile(cmd: string): boolean {
   if (!READ_COMMANDS.test(cmd)) return false;
 
-  // Split on pipes/semicolons/&& to get individual commands
-  const parts = cmd.split(/[|;&]+/);
+  // Check input redirections: `cat <.env` or `cat < .env`
+  // The file after `<` is read by the preceding command.
+  const redirectPattern = /<\s*([^\s|;&<>]+)/g;
+  let rMatch;
+  while ((rMatch = redirectPattern.exec(cmd)) !== null) {
+    if (isSensitivePath(stripShellMeta(rMatch[1]!))) return true;
+  }
+
+  // Split on pipes, semicolons, &&, and redirections to get individual commands
+  const parts = cmd.split(/[|;&<>]+/);
   for (const part of parts) {
     const tokens = part.trim().split(/\s+/);
     const cmdIndex = tokens.findIndex((t) => READ_COMMANDS.test(t));
     if (cmdIndex === -1) continue;
 
     // Check all tokens after the command for sensitive paths (skip flags).
-    // Expand shell variables/tilde so `cat $HOME/.env` and `cat ~/secrets/.env` are caught.
     for (let i = cmdIndex + 1; i < tokens.length; i++) {
       const token = tokens[i]!;
       if (token.startsWith('-')) continue; // skip flags like -n, -5
-      const expanded = token.replace(/^~\//, '/home/user/').replace(/\$\{?\w+\}?\//g, '/');
-      if (isSensitivePath(expanded)) return true;
+      const cleaned = stripShellMeta(token);
+      if (isSensitivePath(cleaned)) return true;
     }
   }
   return false;

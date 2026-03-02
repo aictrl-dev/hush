@@ -25,13 +25,13 @@ GATEWAY_PORT=4000
 GATEWAY_PID=""
 PASS_COUNT=0
 FAIL_COUNT=0
-TMPDIR=""
+WORK_DIR=""
 
 cleanup() {
   echo ""
   echo -e "${CYAN}Cleaning up...${NC}"
   [ -n "$GATEWAY_PID" ] && kill "$GATEWAY_PID" 2>/dev/null || true
-  [ -n "$TMPDIR" ] && rm -rf "$TMPDIR"
+  [ -n "$WORK_DIR" ] && rm -rf "$WORK_DIR"
   wait 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -87,7 +87,7 @@ cd "$PROJECT_DIR"
 # --- Step 1: Start Hush gateway ---
 echo -e "${YELLOW}[1/5] Starting Hush gateway on :${GATEWAY_PORT}...${NC}"
 
-DEBUG=true node dist/cli.js > /tmp/hush-e2e-proxy.log 2>&1 &
+PORT=$GATEWAY_PORT DEBUG=true node dist/cli.js > /tmp/hush-e2e-proxy.log 2>&1 &
 GATEWAY_PID=$!
 
 wait_for_port "$GATEWAY_PORT" "Gateway" || exit 1
@@ -96,11 +96,11 @@ echo -e "  Gateway PID: ${GATEWAY_PID}"
 # --- Step 2: Create temp project with config.txt containing PII ---
 echo -e "${YELLOW}[2/5] Creating temp project with config.txt (PII in normal file)...${NC}"
 
-TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.opencode/plugins"
+WORK_DIR=$(mktemp -d)
+mkdir -p "$WORK_DIR/.opencode/plugins"
 
 # Normal filename — plugin won't block this
-cat > "$TMPDIR/config.txt" <<'CFGEOF'
+cat > "$WORK_DIR/config.txt" <<'CFGEOF'
 # Application Configuration
 app_name: MyApp
 admin_contact: alice@confidential-corp.com
@@ -111,10 +111,10 @@ CFGEOF
 
 # Copy the hush plugin (it won't block config.txt — not a sensitive filename)
 cp "$PROJECT_DIR/examples/team-config/.opencode/plugins/hush.ts" \
-   "$TMPDIR/.opencode/plugins/hush.ts"
+   "$WORK_DIR/.opencode/plugins/hush.ts"
 
 # Point OpenCode at hush proxy
-cat > "$TMPDIR/opencode.json" <<OCEOF
+cat > "$WORK_DIR/opencode.json" <<OCEOF
 {
   "provider": {
     "zai-coding-plan": {
@@ -127,7 +127,7 @@ cat > "$TMPDIR/opencode.json" <<OCEOF
 }
 OCEOF
 
-echo -e "  Temp project: ${TMPDIR}"
+echo -e "  Temp project: ${WORK_DIR}"
 
 # --- Step 3: Check vault is empty before test ---
 echo -e "${YELLOW}[3/5] Checking gateway vault is empty before test...${NC}"
@@ -139,8 +139,8 @@ echo -e "  Vault size before: ${VAULT_BEFORE}"
 # --- Step 4: Run OpenCode to read config.txt ---
 echo -e "${YELLOW}[4/5] Running OpenCode: 'read config.txt and summarize it'...${NC}"
 
-cd "$TMPDIR"
-OUTPUT=$(opencode -p "read config.txt and summarize it" -q -f json 2>&1) || true
+cd "$WORK_DIR"
+OUTPUT=$(timeout 120 opencode -p "read config.txt and summarize it" -q -f json 2>&1) || true
 echo -e "  Output length: $(echo "$OUTPUT" | wc -c) bytes"
 
 # --- Step 5: Verify proxy redacted PII ---

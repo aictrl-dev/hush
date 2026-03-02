@@ -199,10 +199,12 @@ export class TokenVault {
           const lastBracket = buf.lastIndexOf('[');
           // Only treat as partial token if the text after '[' looks like a
           // token prefix (uppercase letter or underscore), not JSON array content.
+          // Also hold back a bare '[' at the end — not enough chars yet to decide.
+          const tail = lastBracket >= 0 ? buf.substring(lastBracket) : '';
           const hasPartialToken = maxTokenLen > 0 && lastBracket >= 0 &&
-            !buf.substring(lastBracket).includes(']') &&
+            !tail.includes(']') &&
             buf.length - lastBracket < maxTokenLen &&
-            /^\[[A-Z_]/.test(buf.substring(lastBracket));
+            (tail === '[' || /^\[[A-Z_]/.test(tail));
 
           if (hasPartialToken) {
             const safe = buf.substring(0, lastBracket);

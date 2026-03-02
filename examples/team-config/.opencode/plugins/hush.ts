@@ -29,15 +29,24 @@ const SENSITIVE_GLOBS = [
 ];
 
 function isSensitivePath(filePath: string): boolean {
-  const basename = filePath.split('/').pop() ?? '';
+  const basename = (filePath.split('/').pop() ?? '').trim();
   return SENSITIVE_GLOBS.some((re) => re.test(basename));
 }
 
 const READ_COMMANDS = /\b(cat|head|tail|less|more|bat|batcat)\b/;
 
+function stripShellMeta(token: string): string {
+  return token.replace(/[`"'$(){}]/g, '');
+}
+
 function commandReadsSensitiveFile(cmd: string): boolean {
   if (!READ_COMMANDS.test(cmd)) return false;
-  const parts = cmd.split(/[|;&]+/);
+  const redirectPattern = /<\s*([^\s|;&<>]+)/g;
+  let rMatch;
+  while ((rMatch = redirectPattern.exec(cmd)) !== null) {
+    if (isSensitivePath(stripShellMeta(rMatch[1]!))) return true;
+  }
+  const parts = cmd.split(/[|;&<>]+/);
   for (const part of parts) {
     const tokens = part.trim().split(/\s+/);
     const cmdIndex = tokens.findIndex((t) => READ_COMMANDS.test(t));
@@ -45,8 +54,8 @@ function commandReadsSensitiveFile(cmd: string): boolean {
     for (let i = cmdIndex + 1; i < tokens.length; i++) {
       const token = tokens[i]!;
       if (token.startsWith('-')) continue;
-      const expanded = token.replace(/^~\//, '/home/user/').replace(/\$\{?\w+\}?\//g, '/');
-      if (isSensitivePath(expanded)) return true;
+      const cleaned = stripShellMeta(token);
+      if (isSensitivePath(cleaned)) return true;
     }
   }
   return false;

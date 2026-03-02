@@ -12,13 +12,25 @@ build:
   artifacts:
     paths:
       - dist/
-      - node_modules/
     expire_in: 1 hour
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
 
 e2e-plugin-blocks-env:
   stage: e2e
   image: node:22-slim
   needs: [build]
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+    policy: pull
   before_script:
     - npm install -g opencode
   script:
@@ -31,6 +43,13 @@ e2e-proxy-redacts-pii:
   stage: e2e
   image: node:22-slim
   needs: [build]
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - node_modules/
+    policy: pull
   before_script:
     - npm install -g opencode
   script:

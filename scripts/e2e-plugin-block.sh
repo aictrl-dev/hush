@@ -23,12 +23,12 @@ NC='\033[0m'
 
 PASS_COUNT=0
 FAIL_COUNT=0
-TMPDIR=""
+WORK_DIR=""
 
 cleanup() {
   echo ""
   echo -e "${CYAN}Cleaning up...${NC}"
-  [ -n "$TMPDIR" ] && rm -rf "$TMPDIR"
+  [ -n "$WORK_DIR" ] && rm -rf "$WORK_DIR"
 }
 trap cleanup EXIT
 
@@ -68,11 +68,11 @@ echo ""
 # --- Step 1: Create temp project with .env and hush plugin ---
 echo -e "${YELLOW}[1/4] Creating temp project with .env and hush plugin...${NC}"
 
-TMPDIR=$(mktemp -d)
-mkdir -p "$TMPDIR/.opencode/plugins"
+WORK_DIR=$(mktemp -d)
+mkdir -p "$WORK_DIR/.opencode/plugins"
 
 # Sensitive .env file with PII
-cat > "$TMPDIR/.env" <<'ENVEOF'
+cat > "$WORK_DIR/.env" <<'ENVEOF'
 DATABASE_URL=postgres://admin:supersecret@10.42.99.7:5432/prod
 API_KEY=sk-live-a1b2c3d4e5f6g7h8i9j0k1l2m3n4
 ADMIN_EMAIL=alice@confidential-corp.com
@@ -81,10 +81,10 @@ ENVEOF
 
 # Copy the drop-in plugin
 cp "$PROJECT_DIR/examples/team-config/.opencode/plugins/hush.ts" \
-   "$TMPDIR/.opencode/plugins/hush.ts"
+   "$WORK_DIR/.opencode/plugins/hush.ts"
 
 # opencode.json — point at real provider + enable plugin
-cat > "$TMPDIR/opencode.json" <<OCEOF
+cat > "$WORK_DIR/opencode.json" <<OCEOF
 {
   "provider": {
     "zai-coding-plan": {
@@ -97,15 +97,15 @@ cat > "$TMPDIR/opencode.json" <<OCEOF
 }
 OCEOF
 
-echo -e "  Temp project: ${TMPDIR}"
+echo -e "  Temp project: ${WORK_DIR}"
 echo -e "  .env contains: email, API key, DB URL, AWS secret"
 
 # --- Step 2: Run OpenCode with prompt to read .env ---
 echo ""
 echo -e "${YELLOW}[2/4] Running OpenCode: 'read the file .env and tell me what's in it'...${NC}"
 
-cd "$TMPDIR"
-OUTPUT=$(opencode -p "read the file .env and tell me what's in it" -q -f json 2>&1) || true
+cd "$WORK_DIR"
+OUTPUT=$(timeout 120 opencode -p "read the file .env and tell me what's in it" -q -f json 2>&1) || true
 echo -e "  Output length: $(echo "$OUTPUT" | wc -c) bytes"
 
 # --- Step 3: Verify plugin blocked the read ---
