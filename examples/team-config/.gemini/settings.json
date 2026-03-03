@@ -1,9 +1,6 @@
 {
-  "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000"
-  },
   "hooks": {
-    "PreToolUse": [
+    "BeforeTool": [
       {
         "matcher": "mcp__.*",
         "hooks": [
@@ -15,9 +12,9 @@
         ]
       }
     ],
-    "PostToolUse": [
+    "AfterTool": [
       {
-        "matcher": "Bash|Read|Grep|WebFetch",
+        "matcher": "run_shell_command|read_file|read_many_files|search_file_content|web_fetch",
         "hooks": [
           {
             "type": "command",
