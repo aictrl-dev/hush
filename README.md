@@ -87,6 +87,7 @@ your-project/
 ├── .claude/settings.json     # Claude Code → hush
 ├── .codex/config.toml        # Codex → hush
 ├── .gemini/.env              # Gemini CLI → hush
+├── .openclaw/                # OpenClaw skill workspace
 └── opencode.json             # OpenCode → hush
 ```
 
@@ -220,6 +221,30 @@ Tool reads config.txt → [Plugin: allowed]            → proxy redacts PII →
                          (not a sensitive filename)
 ```
 
+## OpenClaw Skill
+
+Hush provides a **safety skill** for OpenClaw that blocks dangerous file reads and redacts PII from tool outputs *locally* before the model ever sees them.
+
+### Setup
+
+Copy the skill directory into your OpenClaw workspace:
+
+```bash
+mkdir -p ~/.openclaw/workspace/skills/hush
+cp examples/team-config/.openclaw/skills/hush/* ~/.openclaw/workspace/skills/hush/
+```
+
+### What it protects
+
+1. **Pre-execution Blocking**: Stops tools like `read` or `bash` if they target sensitive files (e.g., `.env`, `*.pem`, `id_rsa`).
+2. **Post-execution Redaction**: Automatically scans `stdout`/`stderr` and file content for PII (emails, IPs, keys) and swaps them for tokens before returning the result to the model.
+
+### npm import
+
+```typescript
+import { HushSkill } from '@aictrl/hush/openclaw-skill'
+```
+
 ## How it Works
 
 1. **Intercept** — Hush sits on your machine between your AI tool and the LLM provider.
@@ -235,6 +260,7 @@ Tool reads config.txt → [Plugin: allowed]            → proxy redacts PII →
 | Claude Code | `~/.claude/settings.json` | `/v1/messages` → Anthropic |
 | Codex | `~/.codex/config.toml` | `/v1/chat/completions` → OpenAI |
 | OpenCode | `opencode.json` | `/api/paas/v4/**` → ZhipuAI |
+| OpenClaw | `~/.openclaw/openclaw.json` | `/*` (Proxy) + Skill |
 | Gemini CLI | `.gemini/.env` | `/v1beta/models/**` → Google |
 | Any tool | Point base URL at hush | `/*` catch-all with auto-detect |
 

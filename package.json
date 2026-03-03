@@ -13,6 +13,10 @@
     "./opencode-plugin": {
       "import": "./dist/plugins/opencode-hush.js",
       "types": "./dist/plugins/opencode-hush.d.ts"
+    },
+    "./openclaw-skill": {
+      "import": "./dist/plugins/openclaw-hush.js",
+      "types": "./dist/plugins/openclaw-hush.d.ts"
     }
   },
   "bin": {
@@ -24,6 +28,7 @@
     "dev": "tsx src/cli.ts",
     "test": "vitest run --coverage",
     "test:e2e": "./scripts/e2e-opencode.sh",
+    "test:openclaw": "tsx scripts/e2e-openclaw.ts",
     "test:watch": "vitest",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\""
@@ -49,6 +54,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "openclaw": "^0.0.1",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3"
   },
