@@ -173,3 +173,83 @@ describe('hush init --hooks', () => {
     expect(settings.hooks.PostToolUse).toHaveLength(2);
   });
 });
+
+// ── Gemini CLI init ───────────────────────────────────────────────────
+
+function runInitGemini(cwd: string, ...extraArgs: string[]): { stdout: string; stderr: string; exitCode: number } {
+  try {
+    const stdout = execFileSync('node', [CLI, 'init', '--hooks', '--gemini', ...extraArgs], {
+      encoding: 'utf-8',
+      cwd,
+      timeout: 5000,
+    });
+    return { stdout, stderr: '', exitCode: 0 };
+  } catch (err: any) {
+    return {
+      stdout: err.stdout ?? '',
+      stderr: err.stderr ?? '',
+      exitCode: err.status ?? 1,
+    };
+  }
+}
+
+describe('hush init --hooks --gemini', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'hush-init-gemini-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('should create .gemini/settings.json with BeforeTool and AfterTool', () => {
+    const { stdout, exitCode } = runInitGemini(tmpDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Wrote hush hooks config');
+
+    const settings = JSON.parse(readFileSync(join(tmpDir, '.gemini', 'settings.json'), 'utf-8'));
+
+    // BeforeTool
+    expect(settings.hooks.BeforeTool).toHaveLength(1);
+    expect(settings.hooks.BeforeTool[0].matcher).toBe('mcp__.*');
+    expect(settings.hooks.BeforeTool[0].hooks[0].command).toBe('hush redact-hook');
+
+    // AfterTool
+    expect(settings.hooks.AfterTool).toHaveLength(2);
+    expect(settings.hooks.AfterTool[0].matcher).toBe('run_shell_command|read_file|read_many_files|search_file_content|web_fetch');
+    expect(settings.hooks.AfterTool[0].hooks[0].command).toBe('hush redact-hook');
+    expect(settings.hooks.AfterTool[1].matcher).toBe('mcp__.*');
+    expect(settings.hooks.AfterTool[1].hooks[0].command).toBe('hush redact-hook');
+  });
+
+  it('should not create .claude/ directory', () => {
+    runInitGemini(tmpDir);
+    expect(existsSync(join(tmpDir, '.claude'))).toBe(false);
+  });
+
+  it('should be idempotent on re-run', () => {
+    runInitGemini(tmpDir);
+    const { stdout, exitCode } = runInitGemini(tmpDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('already configured');
+
+    const settings = JSON.parse(readFileSync(join(tmpDir, '.gemini', 'settings.json'), 'utf-8'));
+    expect(settings.hooks.BeforeTool).toHaveLength(1);
+    expect(settings.hooks.AfterTool).toHaveLength(2);
+  });
+
+  it('should write to settings.local.json with --local flag', () => {
+    const { stdout, exitCode } = runInitGemini(tmpDir, '--local');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('settings.local.json');
+
+    const localPath = join(tmpDir, '.gemini', 'settings.local.json');
+    expect(existsSync(localPath)).toBe(true);
+
+    const settings = JSON.parse(readFileSync(localPath, 'utf-8'));
+    expect(settings.hooks.BeforeTool[0].hooks[0].command).toBe('hush redact-hook');
+    expect(settings.hooks.AfterTool[0].hooks[0].command).toBe('hush redact-hook');
+  });
+});
