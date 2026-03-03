@@ -1,0 +1,38 @@
+{
+  "hooks": {
+    "BeforeTool": [
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hush redact-hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "run_shell_command|read_file|read_many_files|search_file_content|web_fetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hush redact-hook",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "hush redact-hook",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

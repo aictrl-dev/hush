@@ -1,15 +1,18 @@
 /**
  * Hush PII Guard — OpenCode Plugin (drop-in copy)
  *
- * Blocks reads of sensitive files (.env, *.pem, credentials.*, etc.)
- * before the tool executes — the AI model never sees the content.
+ * This drop-in copy provides file-blocking only (sensitive file reads).
+ * For full bidirectional PII redaction (tool args + tool results),
+ * install from npm instead:
  *
- * Usage: copy this file to `.opencode/plugins/hush.ts` in your project
- * and add to `opencode.json`:
- *   { "plugin": [".opencode/plugins/hush.ts"] }
+ *   npm install @aictrl/hush
  *
- * Or install from npm:
+ * Then in your plugin entry point:
  *   import { HushPlugin } from '@aictrl/hush/opencode-plugin'
+ *
+ * Usage (drop-in): copy this file to `.opencode/plugins/hush.ts` in your
+ * project and add to `opencode.json`:
+ *   { "plugin": [".opencode/plugins/hush.ts"] }
  */
 
 const SENSITIVE_GLOBS = [

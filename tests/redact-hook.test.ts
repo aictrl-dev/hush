@@ -334,4 +334,165 @@ describe('hush redact-hook', () => {
       expect(stdout.trim()).toBe('');
     });
   });
+
+  // ── Gemini CLI: BeforeTool (outbound MCP arg redaction) ───────────────
+
+  describe('BeforeTool — Gemini outbound MCP arg redaction', () => {
+    it('should redact email and return hookSpecificOutput.tool_input (no Claude fields)', () => {
+      const payload = {
+        hook_event_name: 'BeforeTool',
+        tool_name: 'mcp__slack__send_message',
+        tool_input: {
+          channel: '#general',
+          text: 'Please contact admin@secret.corp for access',
+        },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+
+      const result = JSON.parse(stdout);
+      expect(result.hookSpecificOutput).toBeDefined();
+      expect(result.hookSpecificOutput.tool_input).toBeDefined();
+      expect(result.hookSpecificOutput.tool_input.text).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+      expect(result.hookSpecificOutput.tool_input.text).not.toContain('admin@secret.corp');
+      expect(result.hookSpecificOutput.tool_input.channel).toBe('#general');
+      // Should NOT have Claude-specific fields
+      expect(result.hookSpecificOutput.hookEventName).toBeUndefined();
+      expect(result.hookSpecificOutput.permissionDecision).toBeUndefined();
+      expect(result.hookSpecificOutput.updatedInput).toBeUndefined();
+    });
+
+    it('should pass through clean input with no output', () => {
+      const payload = {
+        hook_event_name: 'BeforeTool',
+        tool_name: 'mcp__miro__create_card',
+        tool_input: {
+          title: 'Sprint planning',
+          description: 'Weekly sync meeting notes',
+        },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+
+    it('should pass through when no tool_input is present', () => {
+      const payload = {
+        hook_event_name: 'BeforeTool',
+        tool_name: 'mcp__db__list_tables',
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+  });
+
+  // ── Gemini CLI: AfterTool built-in (inbound result redaction) ─────────
+
+  describe('AfterTool built-in — Gemini inbound result redaction', () => {
+    it('should redact email and return decision:"deny" (not "block")', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'run_shell_command',
+        tool_response: { stdout: 'email: test@foo.com' },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+
+      const result = JSON.parse(stdout);
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+      expect(result.reason).not.toContain('test@foo.com');
+    });
+
+    it('should pass through clean output with no output', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'read_file',
+        tool_response: { stdout: 'hello world' },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+
+    it('should pass through when no tool_response', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'read_file',
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+  });
+
+  // ── Gemini CLI: AfterTool MCP (inbound MCP result redaction) ──────────
+
+  describe('AfterTool MCP — Gemini inbound MCP result redaction', () => {
+    it('should redact email in content array and return deny/reason with joined text', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'mcp__slack__read_channel',
+        tool_response: {
+          content: [
+            { type: 'text', text: 'Message from admin@company.io: hello team' },
+          ],
+        },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+
+      const result = JSON.parse(stdout);
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+      expect(result.reason).not.toContain('admin@company.io');
+    });
+
+    it('should join multiple content blocks into reason', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'mcp__db__query',
+        tool_response: {
+          content: [
+            { type: 'text', text: 'Row 1: user@leaked.com' },
+            { type: 'text', text: 'Row 2: 192.168.0.1' },
+          ],
+        },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+
+      const result = JSON.parse(stdout);
+      expect(result.decision).toBe('deny');
+      expect(result.reason).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+      expect(result.reason).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
+    });
+
+    it('should pass through clean MCP content with no output', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'mcp__miro__get_board',
+        tool_response: {
+          content: [
+            { type: 'text', text: 'Board "Sprint 42" has 15 cards' },
+          ],
+        },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+
+    it('should handle AfterTool MCP with no content array', () => {
+      const payload = {
+        hook_event_name: 'AfterTool',
+        tool_name: 'mcp__slack__ping',
+        tool_response: { status: 'ok' },
+      };
+      const { stdout, exitCode } = runHook(JSON.stringify(payload));
+      expect(exitCode).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+  });
 });

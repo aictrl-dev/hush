@@ -145,4 +145,75 @@ describe('HushPlugin integration', () => {
       ),
     ).resolves.toBeUndefined();
   });
+
+  it('redacts email in tool args (in-place mutation)', async () => {
+    const plugin = await HushPlugin();
+    const output = { args: { text: 'Contact admin@secret.corp for access', channel: '#general' } };
+    await plugin['tool.execute.before']({ tool: 'mcp_send' }, output);
+    expect(output.args.text).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(output.args.text).not.toContain('admin@secret.corp');
+    expect(output.args.channel).toBe('#general');
+  });
+
+  it('passes through clean args without mutation', async () => {
+    const plugin = await HushPlugin();
+    const output = { args: { text: 'hello world', channel: '#general' } };
+    await plugin['tool.execute.before']({ tool: 'mcp_send' }, output);
+    expect(output.args.text).toBe('hello world');
+    expect(output.args.channel).toBe('#general');
+  });
+
+  it('still blocks sensitive files before redacting args', async () => {
+    const plugin = await HushPlugin();
+    await expect(
+      plugin['tool.execute.before'](
+        { tool: 'read' },
+        { args: { filePath: '.env', extra: 'admin@secret.corp' } },
+      ),
+    ).rejects.toThrow('[hush] Blocked: sensitive file');
+  });
+});
+
+describe('HushPlugin tool.execute.after', () => {
+  it('exports a tool.execute.after hook', async () => {
+    const plugin = await HushPlugin();
+    expect(plugin['tool.execute.after']).toBeTypeOf('function');
+  });
+
+  it('redacts email in built-in tool output (output.output string)', async () => {
+    const plugin = await HushPlugin();
+    const output = { output: 'Contact admin@secret.corp for access' } as any;
+    await plugin['tool.execute.after']({ tool: 'bash' }, output);
+    expect(output.output).toMatch(/\[USER_EMAIL_[a-f0-9]{6}\]/);
+    expect(output.output).not.toContain('admin@secret.corp');
+  });
+
+  it('redacts IP in MCP content blocks (output.content array)', async () => {
+    const plugin = await HushPlugin();
+    const output = {
+      content: [
+        { type: 'text', text: 'Server at 192.168.1.100' },
+        { type: 'text', text: 'No PII here' },
+      ],
+    } as any;
+    await plugin['tool.execute.after']({ tool: 'mcp_query' }, output);
+    expect(output.content[0].text).toMatch(/\[NETWORK_IP_[a-f0-9]{6}\]/);
+    expect(output.content[0].text).not.toContain('192.168.1.100');
+    expect(output.content[1].text).toBe('No PII here');
+  });
+
+  it('passes through clean output unchanged', async () => {
+    const plugin = await HushPlugin();
+    const output = { output: 'hello world' } as any;
+    await plugin['tool.execute.after']({ tool: 'bash' }, output);
+    expect(output.output).toBe('hello world');
+  });
+
+  it('handles output with no relevant fields gracefully', async () => {
+    const plugin = await HushPlugin();
+    const output = {} as any;
+    await expect(
+      plugin['tool.execute.after']({ tool: 'bash' }, output),
+    ).resolves.toBeUndefined();
+  });
 });
