@@ -69,33 +69,78 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Setup Node.js
+        if: steps.check_changes.outputs.skip != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Start Hush Gateway
+        if: steps.check_changes.outputs.skip != 'true'
+        run: |
+          npm ci && npm run build
+          PORT=4000 HUSH_HOST=127.0.0.1 node dist/cli.js > /tmp/hush-gateway.log 2>&1 &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:4000/health > /dev/null 2>&1 && break
+            sleep 0.5
+          done
+          curl -sf http://127.0.0.1:4000/health || { echo "::error::Hush gateway failed to start"; exit 1; }
+          echo "Hush gateway running on :4000"
+
       - name: Setup OpenCode
         if: steps.check_changes.outputs.skip != 'true'
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Use GITHUB_TOKEN to avoid rate limits when fetching version info
           curl -fsSL https://opencode.ai/install | bash -s -- --no-modify-path
           echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
+          # Route the built-in zai-coding-plan provider through the hush proxy
+          # by overriding baseURL. No custom provider needed — the provider
+          # auto-detects apiKey from ZHIPU_API_KEY env var.
+          mkdir -p .opencode/plugins
+          cp examples/team-config/.opencode/plugins/hush.ts .opencode/plugins/hush.ts
+          printf '%s\n' '{"provider":{"zai-coding-plan":{"options":{"baseURL":"http://127.0.0.1:4000/api/coding/paas/v4"}}},"plugin":[".opencode/plugins/hush.ts"]}' > opencode.json
+
       - name: Direct OpenCode Review
         if: steps.check_changes.outputs.skip != 'true'
+        timeout-minutes: 15
         env:
           ZHIPU_API_KEY: ${{ secrets.ZHIPUAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SHA=${{ github.event.pull_request.head.sha || github.sha }}
-          echo "Starting review with GLM-5 for SHA $SHA..."
-          
-          $HOME/.opencode/bin/opencode run --model zai-coding-plan/glm-5 "Review the changes in this PR for the Hush Semantic Gateway.
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          echo "Starting review with zai-coding-plan/glm-5 via hush proxy for PR #$PR_NUMBER SHA $SHA..."
+          echo "opencode.json:"; cat opencode.json
+          echo "Hush health:"; curl -sf http://127.0.0.1:4000/health || echo "gateway unreachable"
+
+          $HOME/.opencode/bin/opencode run --model zai-coding-plan/glm-5 "Review the changes in PR #$PR_NUMBER for the Hush Semantic Gateway.
+
+          **IMPORTANT**: This is a code review only. Do NOT run tests, npm commands, or build commands. Only read source files and git diffs.
 
           Focus areas:
           1. **Redaction Logic**: Ensure PII patterns are robust and handle edge cases in tool outputs (like JSON or CLI tables).
           2. **Streaming Integrity**: Check that the SSE/streaming proxy logic doesn't buffer unnecessarily or break the rehydration flow.
           3. **Security**: Look for potential PII leaks or insecure token handling in the vault.
           4. **Reliability**: Ensure the proxy handles upstream errors gracefully.
-          
-          Keep the summary concise but technical. Post findings as a markdown comment on the PR.
-          
+
+          Keep the review concise. Post findings as a single markdown comment using:
+            gh pr comment $PR_NUMBER --body \"<your review>\"
+
+          Do NOT try to auto-detect the PR number — use exactly $PR_NUMBER.
+
           **CRITICAL**: Include the string 'Reviewed SHA: $SHA' at the very end of your comment so I can track which commits have been reviewed."
+
+      - name: Verify Hush Proxy Was Used
+        if: always() && steps.check_changes.outputs.skip != 'true'
+        run: |
+          echo "=== Hush Gateway Logs ==="
+          cat /tmp/hush-gateway.log 2>/dev/null || echo "No gateway log found"
+          echo ""
+          if grep -q "Starting stream proxy" /tmp/hush-gateway.log 2>/dev/null; then
+            echo "Hush proxy intercepted traffic"
+          else
+            echo "::warning::No proxy traffic detected in hush logs — review may have bypassed the gateway"
+          fi
