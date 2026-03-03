@@ -72,6 +72,9 @@ describe('commandReadsSensitiveFile', () => {
     'cat `.env`',
     'cat <.env',
     "cat '.env'",
+    'cat $HOME/.env',
+    "cat $'.env'",
+    'cat $SECRET_PATH',
   ])('blocks: %s', (cmd) => {
     expect(commandReadsSensitiveFile(cmd)).toBe(true);
   });

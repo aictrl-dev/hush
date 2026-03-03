@@ -51,26 +51,33 @@ export const HushSkill = async () => ({
 
     const output = event.result;
 
+    const redactSafely = (val: any): string | any => {
+      if (typeof val !== 'string') return val;
+      try {
+        const { content } = redactor.redact(val);
+        return typeof content === 'string' ? content : val;
+      } catch (err) {
+        // Fallback: return original content if redaction fails to avoid data loss
+        return val;
+      }
+    };
+
     // 1. Scan stdout/stderr (Bash tool)
     if (output.stdout) {
-      const { content: redacted } = redactor.redact(output.stdout);
-      output.stdout = redacted as string;
+      output.stdout = redactSafely(output.stdout);
     }
     if (output.stderr) {
-      const { content: redacted } = redactor.redact(output.stderr);
-      output.stderr = redacted as string;
+      output.stderr = redactSafely(output.stderr);
     }
 
     // 2. Scan file content (Read tool)
     if (output.file && typeof output.file.content === 'string') {
-      const { content: redacted } = redactor.redact(output.file.content);
-      output.file.content = redacted as string;
+      output.file.content = redactSafely(output.file.content);
     }
 
     // 3. Scan generic content/output
     if (typeof output.content === 'string') {
-      const { content: redacted } = redactor.redact(output.content);
-      output.content = redacted as string;
+      output.content = redactSafely(output.content);
     }
   },
 });

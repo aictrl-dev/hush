@@ -34,7 +34,8 @@ const READ_COMMANDS = /\b(cat|head|tail|less|more|bat|batcat)\b/;
 
 /** Strip shell metacharacters that could wrap a filename to bypass detection. */
 function stripShellMeta(token: string): string {
-  return token.replace(/[`"'$(){}]/g, '');
+  // Handle ANSI-C quoting $'.env' and common shell wrappers
+  return token.replace(/^\$?'/, '').replace(/'$/, '').replace(/[`"'$(){}]/g, '');
 }
 
 /**
@@ -49,7 +50,10 @@ export function commandReadsSensitiveFile(cmd: string): boolean {
   const redirectPattern = /<\s*([^\s|;&<>]+)/g;
   let rMatch;
   while ((rMatch = redirectPattern.exec(cmd)) !== null) {
-    if (isSensitivePath(stripShellMeta(rMatch[1]!))) return true;
+    const token = rMatch[1]!;
+    // Block if it looks like an environment variable expansion which could hide a secret path
+    if (token.includes('$')) return true;
+    if (isSensitivePath(stripShellMeta(token))) return true;
   }
 
   // Split on pipes, semicolons, &&, and redirections to get individual commands
@@ -63,6 +67,11 @@ export function commandReadsSensitiveFile(cmd: string): boolean {
     for (let i = cmdIndex + 1; i < tokens.length; i++) {
       const token = tokens[i]!;
       if (token.startsWith('-')) continue; // skip flags like -n, -5
+      
+      // Block environment variable usage in read commands as a safety measure
+      // (e.g. cat $SECRET_FILE)
+      if (token.includes('$')) return true;
+
       const cleaned = stripShellMeta(token);
       if (isSensitivePath(cleaned)) return true;
     }

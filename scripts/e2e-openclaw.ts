@@ -50,21 +50,33 @@ const gateway = http.createServer(async (req, res) => {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', async () => {
-      const bodyParsed = JSON.parse(body);
-      const { content: redactedBody, tokens, hasRedacted } = redactor.redact(bodyParsed);
-      if (hasRedacted) {
-        vault.saveTokens(tokens);
-      }
+      try {
+        const bodyParsed = JSON.parse(body);
+        const { content: redactedBody, tokens, hasRedacted } = redactor.redact(bodyParsed);
+        if (hasRedacted) {
+          vault.saveTokens(tokens);
+        }
 
-      const upstreamRes = await fetch(`http://127.0.0.1:${MOCK_PORT}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(redactedBody)
-      });
-      const data = await upstreamRes.json();
-      const rehydrated = vault.rehydrate(data);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(rehydrated));
+        const upstreamRes = await fetch(`http://127.0.0.1:${MOCK_PORT}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(redactedBody)
+        });
+
+        if (!upstreamRes.ok) {
+          res.writeHead(upstreamRes.status);
+          res.end(await upstreamRes.text());
+          return;
+        }
+
+        const data = await upstreamRes.json();
+        const rehydrated = vault.rehydrate(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(rehydrated));
+      } catch (err) {
+        res.writeHead(502);
+        res.end(JSON.stringify({ error: 'Gateway simulated failure' }));
+      }
     });
   } else if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -139,6 +151,23 @@ async function runTest() {
     }
     console.log('  PASS: Rehydrated PII in response to OpenClaw');
     console.log(`  Assistant: ${assistantContent}`);
+
+    // 5. Test Streaming Rehydration (Simulation)
+    console.log('[5/5] Testing Streaming Rehydration Logic...');
+    const rehydrator = vault.createStreamingRehydrator();
+    const token = Array.from((vault as any).vault.keys()).find((t: string) => t.includes('EMAIL'));
+    if (!token) throw new Error('No EMAIL tokens in vault for streaming test');
+    const original = (vault as any).vault.get(token).value;
+
+    const part1 = `Here is the info: ${token.slice(0, 5)}`;
+    const part2 = `${token.slice(5)} and more.`;
+    
+    const out1 = rehydrator(part1);
+    const out2 = rehydrator(part2);
+    
+    if (out1.includes(original!)) throw new Error('PII leaked in partial chunk');
+    if (!(out1 + out2).includes(original!)) throw new Error('PII missing from rehydrated stream');
+    console.log('  PASS: Streaming rehydrator handles split tokens correctly');
 
     console.log('\n--- ALL E2E CHECKS PASSED ---');
   } catch (err) {
